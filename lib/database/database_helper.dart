@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart' hide Transaction;
 import 'package:path/path.dart';
 import '../models/models.dart';
+import '../services/default_patterns.dart';
 
 /// Database helper for managing local SQLite database
 class DatabaseHelper {
@@ -182,6 +183,37 @@ class DatabaseHelper {
       whereArgs: [id],
     );
   }
+
+  /// Reload default patterns - updates existing patterns or adds new ones
+  Future<int> reloadDefaultPatterns() async {
+    final defaultPatterns = DefaultPatterns.getDefaultPatterns();
+    final existingPatterns = await getAllPatterns();
+    
+    int updateCount = 0;
+    
+    for (final defaultPattern in defaultPatterns) {
+      // Find matching pattern by name
+      final existing = existingPatterns.where((p) => p.name == defaultPattern.name).firstOrNull;
+      
+      if (existing != null) {
+        // Update existing pattern with new regex and mappings
+        final updated = existing.copyWith(
+          regexPattern: defaultPattern.regexPattern,
+          fieldMappings: defaultPattern.fieldMappings,
+          transactionType: defaultPattern.transactionType,
+        );
+        await updatePattern(updated);
+        updateCount++;
+      } else {
+        // Add new pattern
+        await createPattern(defaultPattern);
+        updateCount++;
+      }
+    }
+    
+    return updateCount;
+  }
+
 
   // Daily summary operations
   Future<void> saveDailySummary(DailySummary summary) async {

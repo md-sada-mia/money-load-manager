@@ -1,15 +1,24 @@
 import '../models/models.dart';
 import '../database/database_helper.dart';
+import 'default_patterns.dart';
 
 /// SMS parser that matches incoming messages against patterns
 class SmsParser {
   final DatabaseHelper _db = DatabaseHelper.instance;
 
   /// Parse an SMS message and extract transaction data
+  /// Checks default patterns first, then user-created patterns from database
   Future<Transaction?> parseSms(String smsBody, String sender) async {
-    final patterns = await _db.getActivePatterns();
+    // First, check default patterns from code
+    final defaultPatterns = DefaultPatterns.getDefaultPatterns();
+    
+    // Then, get user-created patterns from database
+    final customPatterns = await _db.getActivePatterns();
+    
+    // Combine: default patterns first, then custom patterns
+    final allPatterns = [...defaultPatterns, ...customPatterns];
 
-    for (final pattern in patterns) {
+    for (final pattern in allPatterns) {
       final match = _tryMatchPattern(smsBody, pattern);
       if (match != null) {
         return match;

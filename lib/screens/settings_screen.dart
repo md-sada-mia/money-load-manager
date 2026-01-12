@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import '../models/models.dart';
 import 'training_screen.dart';
 import 'sms_tester_screen.dart';
 import '../services/sms_listener.dart';
-import '../services/default_patterns.dart';
 import '../database/database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -80,15 +78,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Data Management',
             [
               ListTile(
-                leading: const Icon(Icons.download),
-                title: const Text('Load Default Patterns'),
-                subtitle: const Text('Add common Bangladesh SMS patterns'),
-                onTap: _loadDefaultPatterns,
+                leading: const Icon(Icons.info_outline),
+                title: const Text('Pattern Info'),
+                subtitle: const Text('Default patterns are built-in. Database is for custom patterns only.'),
+                enabled: false,
               ),
               ListTile(
                 leading: const Icon(Icons.delete_forever),
                 title: const Text('Clear All Data'),
-                subtitle: const Text('Delete all transactions and patterns'),
+                subtitle: const Text('Delete all transactions and custom patterns'),
                 textColor: Theme.of(context).colorScheme.error,
                 iconColor: Theme.of(context).colorScheme.error,
                 onTap: _confirmClearData,
@@ -212,54 +210,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error importing SMS: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _loadDefaultPatterns() async {
-    try {
-      final defaultPatterns = DefaultPatterns.getDefaultPatterns();
-      
-      // Check if patterns already exist
-      final existingPatterns = await _db.getAllPatterns();
-      if (existingPatterns.isNotEmpty) {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Load Default Patterns'),
-            content: const Text(
-              'This will add common Bangladesh SMS patterns to your database. Existing patterns will not be affected.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Add Patterns'),
-              ),
-            ],
-          ),
-        );
-        
-        if (confirmed != true) return;
-      }
-
-      for (final pattern in defaultPatterns) {
-        await _db.createPattern(pattern);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Added ${defaultPatterns.length} default patterns')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading patterns: $e')),
         );
       }
     }

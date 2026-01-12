@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'services/sms_listener.dart';
 import 'services/permissions_service.dart';
-import 'services/default_patterns.dart';
 import 'database/database_helper.dart';
 
 void main() async {
@@ -106,15 +105,9 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
     // Initialize SMS listener
     await SmsListener.initialize();
     
-    // Load default patterns if first run
-    final db = DatabaseHelper.instance;
-    final existingPatterns = await db.getAllPatterns();
-    if (existingPatterns.isEmpty) {
-      final defaultPatterns = DefaultPatterns.getDefaultPatterns();
-      for (final pattern in defaultPatterns) {
-        await db.createPattern(pattern);
-      }
-    }
+    // Note: Default patterns are NOT loaded into database
+    // They are checked directly from code in sms_parser.dart
+    // Database is only for user-created custom patterns
   }
 
   void _showPermissionDeniedDialog() {
