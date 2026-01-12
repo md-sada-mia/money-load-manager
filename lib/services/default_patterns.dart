@@ -7,25 +7,25 @@ class DefaultPatterns {
       // bKash patterns
       SmsPattern(
         name: 'bKash Received',
-        regexPattern: r'You have received Tk\.?\s*(\d+(?:\.\d{2})?)\s*from\s*(\d{11})',
+        regexPattern: r'You have received Tk\.?\s*([\d,]+(?:\.\d{2})?)\s*from\s*(\d{11})',
         transactionType: TransactionType.bkash,
         fieldMappings: {'amount': '1', 'sender': '2'},
       ),
       SmsPattern(
         name: 'bKash Sent',
-        regexPattern: r'You have sent Tk\.?\s*(\d+(?:\.\d{2})?)\s*to\s*(\d{11})',
+        regexPattern: r'You have sent Tk\.?\s*([\d,]+(?:\.\d{2})?)\s*to\s*(\d{11})',
         transactionType: TransactionType.bkash,
         fieldMappings: {'amount': '1', 'recipient': '2'},
       ),
       SmsPattern(
         name: 'bKash Cash Out',
-        regexPattern: r'Cash Out[:\s]+Tk\.?\s*(\d+(?:\.\d{2})?)',
+        regexPattern: r'Cash Out[:\s]+Tk\.?\s*([\d,]+(?:\.\d{2})?)',
         transactionType: TransactionType.bkash,
         fieldMappings: {'amount': '1'},
       ),
       SmsPattern(
         name: 'bKash Payment',
-        regexPattern: r'Payment[:\s]+Tk\.?\s*(\d+(?:\.\d{2})?)',
+        regexPattern: r'Payment[:\s]+Tk\.?\s*([\d,]+(?:\.\d{2})?)',
         transactionType: TransactionType.bkash,
         fieldMappings: {'amount': '1'},
       ),
@@ -33,7 +33,7 @@ class DefaultPatterns {
       // Flexiload patterns
       SmsPattern(
         name: 'Flexiload Success',
-        regexPattern: r'Recharge successful\.?\s*Amount[:\s]*Tk\.?\s*(\d+(?:\.\d{2})?)',
+        regexPattern: r'Recharge successful\.?\s*Amount[:\s]*Tk\.?\s*([\d,]+(?:\.\d{2})?)',
         transactionType: TransactionType.flexiload,
         fieldMappings: {'amount': '1'},
       ),
