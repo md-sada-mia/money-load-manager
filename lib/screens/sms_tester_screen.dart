@@ -220,6 +220,11 @@ class _SmsTesterScreenState extends State<SmsTesterScreen> {
           ],
         ),
         const SizedBox(height: 16),
+        _buildResultRow('Direction', 
+          _result!.direction == TransactionDirection.incoming 
+            ? '📥 INCOMING' 
+            : '📤 OUTGOING',
+        ),
         _buildResultRow('Type', _result!.type.name.toUpperCase()),
         _buildResultRow('Amount', 'Tk ${_result!.amount.toStringAsFixed(2)}'),
         _buildResultRow('Sender', _result!.sender ?? 'N/A'),

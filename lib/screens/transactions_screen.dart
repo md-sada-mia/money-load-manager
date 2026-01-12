@@ -16,6 +16,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Map<String, List<Transaction>> _groupedTransactions = {};
   bool _isLoading = true;
   TransactionType? _filterType;
+  TransactionDirection? _filterDirection;
 
   @override
   void initState() {
@@ -29,8 +30,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     try {
       Map<String, List<Transaction>> grouped;
       
-      if (_filterType != null) {
-        final transactions = await _transactionService.getTransactionsByType(_filterType!);
+      if (_filterType != null || _filterDirection != null) {
+        List<Transaction> transactions;
+        
+        if (_filterType != null) {
+          transactions = await _transactionService.getTransactionsByType(_filterType!);
+        } else {
+          final allGrouped = await _transactionService.getTransactionsGroupedByDate();
+          transactions = allGrouped.values.expand((list) => list).toList();
+        }
+        
+        // Apply direction filter
+        if (_filterDirection != null) {
+          transactions = transactions.where((txn) => txn.direction == _filterDirection).toList();
+        }
+        
         grouped = {};
         for (final txn in transactions) {
           final dateKey = DateFormat('yyyy-MM-dd').format(txn.timestamp);
@@ -63,32 +77,86 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       appBar: AppBar(
         title: const Text('All Transactions'),
         actions: [
-          PopupMenuButton<TransactionType?>(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.filter_list),
-            onSelected: (type) {
-              setState(() => _filterType = type);
+            tooltip: 'Filter',
+            onSelected: (value) {
+              setState(() {
+                if (value.startsWith('type_')) {
+                  _filterType = value == 'type_all' 
+                      ? null 
+                      : TransactionType.values.firstWhere((t) => 'type_${t.name}' == value);
+                  _filterDirection = null; // Reset direction filter when changing type
+                } else if (value.startsWith('dir_')) {
+                  _filterDirection = value == 'dir_all'
+                      ? null
+                      : TransactionDirection.values.firstWhere((d) => 'dir_${d.name}' == value);
+                  _filterType = null; // Reset type filter when changing direction
+                }
+              });
               _loadTransactions();
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
-                value: null,
+                value: 'header_type',
+                enabled: false,
+                child: Text(
+                  'Filter by Type',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'type_all',
                 child: Text('All Types'),
               ),
               const PopupMenuItem(
-                value: TransactionType.flexiload,
+                value: 'type_flexiload',
                 child: Text('Flexiload'),
               ),
               const PopupMenuItem(
-                value: TransactionType.bkash,
+                value: 'type_bkash',
                 child: Text('bKash'),
               ),
               const PopupMenuItem(
-                value: TransactionType.utilityBill,
+                value: 'type_utilityBill',
                 child: Text('Utility Bills'),
               ),
               const PopupMenuItem(
-                value: TransactionType.other,
+                value: 'type_other',
                 child: Text('Other'),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'header_direction',
+                enabled: false,
+                child: Text(
+                  'Filter by Direction',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'dir_all',
+                child: Text('All Directions'),
+              ),
+              const PopupMenuItem(
+                value: 'dir_incoming',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_downward, color: Colors.green, size: 16),
+                    SizedBox(width: 8),
+                    Text('Incoming'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'dir_outgoing',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_upward, color: Colors.red, size: 16),
+                    SizedBox(width: 8),
+                    Text('Outgoing'),
+                  ],
+                ),
               ),
             ],
           ),
@@ -216,9 +284,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           backgroundColor: color.withOpacity(0.1),
           child: Icon(icon, color: color),
         ),
-        title: Text(
-          'Tk ${txn.amount.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Icon(
+              txn.direction == TransactionDirection.incoming
+                  ? Icons.arrow_downward
+                  : Icons.arrow_upward,
+              color: txn.direction == TransactionDirection.incoming
+                  ? Colors.green
+                  : Colors.red,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Tk ${txn.amount.toStringAsFixed(2)}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         subtitle: Text(
           '${txn.type.name} • ${DateFormat('h:mm a').format(txn.timestamp)}',

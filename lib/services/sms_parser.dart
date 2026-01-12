@@ -66,6 +66,7 @@ class SmsParser {
 
       return Transaction(
         type: pattern.transactionType,
+        direction: pattern.direction,
         amount: amount!,
         sender: sender,
         recipient: recipient,

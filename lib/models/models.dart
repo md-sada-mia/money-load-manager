@@ -6,10 +6,17 @@ enum TransactionType {
   other,
 }
 
+/// Transaction direction (money flow)
+enum TransactionDirection {
+  incoming,  // Money received
+  outgoing,  // Money sent
+}
+
 /// Represents a financial transaction parsed from SMS
 class Transaction {
   final int? id;
   final TransactionType type;
+  final TransactionDirection direction;
   final double amount;
   final String? sender;
   final String? recipient;
@@ -21,6 +28,7 @@ class Transaction {
   Transaction({
     this.id,
     required this.type,
+    required this.direction,
     required this.amount,
     this.sender,
     this.recipient,
@@ -34,6 +42,7 @@ class Transaction {
     return {
       'id': id,
       'type': type.name,
+      'direction': direction.name,
       'amount': amount,
       'sender': sender,
       'recipient': recipient,
@@ -51,6 +60,10 @@ class Transaction {
         (e) => e.name == map['type'],
         orElse: () => TransactionType.other,
       ),
+      direction: TransactionDirection.values.firstWhere(
+        (e) => e.name == map['direction'],
+        orElse: () => TransactionDirection.incoming, // Default for old data
+      ),
       amount: (map['amount'] as num).toDouble(),
       sender: map['sender'] as String?,
       recipient: map['recipient'] as String?,
@@ -64,6 +77,7 @@ class Transaction {
   Transaction copyWith({
     int? id,
     TransactionType? type,
+    TransactionDirection? direction,
     double? amount,
     String? sender,
     String? recipient,
@@ -75,6 +89,7 @@ class Transaction {
     return Transaction(
       id: id ?? this.id,
       type: type ?? this.type,
+      direction: direction ?? this.direction,
       amount: amount ?? this.amount,
       sender: sender ?? this.sender,
       recipient: recipient ?? this.recipient,
@@ -92,6 +107,7 @@ class SmsPattern {
   final String name;
   final String regexPattern;
   final TransactionType transactionType;
+  final TransactionDirection direction;
   final Map<String, String> fieldMappings; // e.g., {"amount": "group1", "sender": "group2"}
   final bool isActive;
   final DateTime createdAt;
@@ -101,6 +117,7 @@ class SmsPattern {
     required this.name,
     required this.regexPattern,
     required this.transactionType,
+    required this.direction,
     required this.fieldMappings,
     this.isActive = true,
     DateTime? createdAt,
@@ -112,6 +129,7 @@ class SmsPattern {
       'name': name,
       'regex_pattern': regexPattern,
       'transaction_type': transactionType.name,
+      'direction': direction.name,
       'field_mappings': _encodeFieldMappings(fieldMappings),
       'is_active': isActive ? 1 : 0,
       'created_at': createdAt.millisecondsSinceEpoch,
@@ -126,6 +144,10 @@ class SmsPattern {
       transactionType: TransactionType.values.firstWhere(
         (e) => e.name == map['transaction_type'],
         orElse: () => TransactionType.other,
+      ),
+      direction: TransactionDirection.values.firstWhere(
+        (e) => e.name == map['direction'],
+        orElse: () => TransactionDirection.incoming, // Default for old data
       ),
       fieldMappings: _decodeFieldMappings(map['field_mappings'] as String),
       isActive: (map['is_active'] as int) == 1,
@@ -152,6 +174,7 @@ class SmsPattern {
     String? name,
     String? regexPattern,
     TransactionType? transactionType,
+    TransactionDirection? direction,
     Map<String, String>? fieldMappings,
     bool? isActive,
     DateTime? createdAt,
@@ -161,6 +184,7 @@ class SmsPattern {
       name: name ?? this.name,
       regexPattern: regexPattern ?? this.regexPattern,
       transactionType: transactionType ?? this.transactionType,
+      direction: direction ?? this.direction,
       fieldMappings: fieldMappings ?? this.fieldMappings,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
@@ -173,6 +197,10 @@ class DailySummary {
   final DateTime date;
   final int totalCount;
   final double totalAmount;
+  final int incomingCount;
+  final double incomingAmount;
+  final int outgoingCount;
+  final double outgoingAmount;
   final int flexiloadCount;
   final double flexiloadAmount;
   final int bkashCount;
@@ -186,6 +214,10 @@ class DailySummary {
     required this.date,
     required this.totalCount,
     required this.totalAmount,
+    required this.incomingCount,
+    required this.incomingAmount,
+    required this.outgoingCount,
+    required this.outgoingAmount,
     required this.flexiloadCount,
     required this.flexiloadAmount,
     required this.bkashCount,
@@ -201,6 +233,10 @@ class DailySummary {
       'date': _dateToString(date),
       'total_count': totalCount,
       'total_amount': totalAmount,
+      'incoming_count': incomingCount,
+      'incoming_amount': incomingAmount,
+      'outgoing_count': outgoingCount,
+      'outgoing_amount': outgoingAmount,
       'flexiload_count': flexiloadCount,
       'flexiload_amount': flexiloadAmount,
       'bkash_count': bkashCount,
@@ -217,6 +253,10 @@ class DailySummary {
       date: _stringToDate(map['date'] as String),
       totalCount: map['total_count'] as int,
       totalAmount: (map['total_amount'] as num).toDouble(),
+      incomingCount: (map['incoming_count'] as int?) ?? 0,
+      incomingAmount: ((map['incoming_amount'] as num?) ?? 0).toDouble(),
+      outgoingCount: (map['outgoing_count'] as int?) ?? 0,
+      outgoingAmount: ((map['outgoing_amount'] as num?) ?? 0).toDouble(),
       flexiloadCount: map['flexiload_count'] as int,
       flexiloadAmount: (map['flexiload_amount'] as num).toDouble(),
       bkashCount: map['bkash_count'] as int,

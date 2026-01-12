@@ -64,6 +64,33 @@ class TransactionDetailScreen extends StatelessWidget {
           children: [
             Icon(icon, size: 48, color: color),
             const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  transaction.direction == TransactionDirection.incoming
+                      ? Icons.arrow_downward
+                      : Icons.arrow_upward,
+                  color: transaction.direction == TransactionDirection.incoming
+                      ? Colors.green
+                      : Colors.red,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  transaction.direction == TransactionDirection.incoming
+                      ? 'INCOMING'
+                      : 'OUTGOING',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: transaction.direction == TransactionDirection.incoming
+                        ? Colors.green
+                        : Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             Text(
               'Tk ${transaction.amount.toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.headlineLarge?.copyWith(

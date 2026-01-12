@@ -178,6 +178,8 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
         _buildDateHeader(),
         const SizedBox(height: 24),
         _buildTotalCard(),
+        const SizedBox(height: 16),
+        _buildDirectionCard(),
         const SizedBox(height: 24),
         _buildChart(),
         const SizedBox(height: 24),
@@ -225,6 +227,124 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDirectionCard() {
+    final netBalance = _summary!.incomingAmount - _summary!.outgoingAmount;
+    final isPositive = netBalance >= 0;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Money Flow',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Incoming
+            Row(
+              children: [
+                Icon(Icons.arrow_downward, color: Colors.green, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Incoming',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '${_summary!.incomingCount} transactions',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  'Tk ${_summary!.incomingAmount.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Outgoing
+            Row(
+              children: [
+                Icon(Icons.arrow_upward, color: Colors.red, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Outgoing',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '${_summary!.outgoingCount} transactions',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  'Tk ${_summary!.outgoingAmount.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+            
+            const Divider(height: 24),
+            
+            // Net Balance
+            Row(
+              children: [
+                Icon(
+                  isPositive ? Icons.trending_up : Icons.trending_down,
+                  color: isPositive ? Colors.green : Colors.red,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Net Balance',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${isPositive ? '+' : ''}Tk ${netBalance.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: isPositive ? Colors.green : Colors.red,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

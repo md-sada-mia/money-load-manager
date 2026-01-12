@@ -128,39 +128,104 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+
   Widget _buildQuickStats() {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _buildStatCard(
-            'Flexiload',
-            _todaySummary?.flexiloadCount ?? 0,
-            _todaySummary?.flexiloadAmount ?? 0,
-            Icons.phone_android,
-            Colors.blue,
-          ),
+        // Direction cards
+        Row(
+          children: [
+            Expanded(
+              child: _buildDirectionCard(
+                'Incoming',
+                _todaySummary?.incomingCount ?? 0,
+                _todaySummary?.incomingAmount ?? 0,
+                Icons.arrow_downward,
+                Colors.green,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildDirectionCard(
+                'Outgoing',
+                _todaySummary?.outgoingCount ?? 0,
+                _todaySummary?.outgoingAmount ?? 0,
+                Icons.arrow_upward,
+                Colors.red,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            'bKash',
-            _todaySummary?.bkashCount ?? 0,
-            _todaySummary?.bkashAmount ?? 0,
-            Icons.account_balance_wallet,
-            Colors.pink,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            'Bills',
-            _todaySummary?.utilityBillCount ?? 0,
-            _todaySummary?.utilityBillAmount ?? 0,
-            Icons.receipt_long,
-            Colors.orange,
-          ),
+        const SizedBox(height: 12),
+        // Type cards
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Flexiload',
+                _todaySummary?.flexiloadCount ?? 0,
+                _todaySummary?.flexiloadAmount ?? 0,
+                Icons.phone_android,
+                Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'bKash',
+                _todaySummary?.bkashCount ?? 0,
+                _todaySummary?.bkashAmount ?? 0,
+                Icons.account_balance_wallet,
+                Colors.pink,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'Bills',
+                _todaySummary?.utilityBillCount ?? 0,
+                _todaySummary?.utilityBillAmount ?? 0,
+                Icons.receipt_long,
+                Colors.orange,
+              ),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _buildDirectionCard(String label, int count, double amount, IconData icon, Color color) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(height: 8),
+            Text(
+              count.toString(),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Tk ${amount.toStringAsFixed(0)}',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -336,9 +401,23 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: color.withOpacity(0.1),
           child: Icon(icon, color: color),
         ),
-        title: Text(
-          'Tk ${txn.amount.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Icon(
+              txn.direction == TransactionDirection.incoming
+                  ? Icons.arrow_downward
+                  : Icons.arrow_upward,
+              color: txn.direction == TransactionDirection.incoming
+                  ? Colors.green
+                  : Colors.red,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Tk ${txn.amount.toStringAsFixed(2)}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         subtitle: Text(
           '${txn.type.name} • ${DateFormat('h:mm a').format(txn.timestamp)}',

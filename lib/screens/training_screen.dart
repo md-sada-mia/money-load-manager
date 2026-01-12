@@ -19,6 +19,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
   final DatabaseHelper _db = DatabaseHelper.instance;
   
   TransactionType _selectedType = TransactionType.flexiload;
+  TransactionDirection _selectedDirection = TransactionDirection.incoming;
   Map<int, String>? _extractedGroups;
   String? _testResult;
 
@@ -52,6 +53,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
           _buildTypeSelector(),
           const SizedBox(height: 16),
           _buildPatternInput(),
+          const SizedBox(height: 16),
+          _buildDirectionSelector(),
           const SizedBox(height: 16),
           _buildExtractButton(),
           if (_extractedGroups != null) ...[
@@ -185,6 +188,39 @@ class _TrainingScreenState extends State<TrainingScreen> {
         border: OutlineInputBorder(),
         helperText: 'Use parentheses () to capture amount, sender, etc.',
       ),
+    );
+  }
+
+  Widget _buildDirectionSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Transaction Direction',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<TransactionDirection>(
+          segments: const [
+            ButtonSegment(
+              value: TransactionDirection.incoming,
+              label: Text('Incoming'),
+              icon: Icon(Icons.arrow_downward),
+            ),
+            ButtonSegment(
+              value: TransactionDirection.outgoing,
+              label: Text('Outgoing'),
+              icon: Icon(Icons.arrow_upward),
+            ),
+          ],
+          selected: {_selectedDirection},
+          onSelectionChanged: (Set<TransactionDirection> newSelection) {
+            setState(() {
+              _selectedDirection = newSelection.first;
+            });
+          },
+        ),
+      ],
     );
   }
 
@@ -369,6 +405,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         name: name,
         regexPattern: pattern,
         transactionType: _selectedType,
+        direction: _selectedDirection,
         fieldMappings: fieldMappings,
       );
 
@@ -410,8 +447,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
         name: '$name',
         regexPattern: r'$pattern',
         transactionType: ${_selectedType.toString()},
+        direction: ${_selectedDirection.toString()},
         fieldMappings: ${mappingBuffer.toString()},
       ),''';
+
 
     Clipboard.setData(ClipboardData(text: code));
     if (mounted) {

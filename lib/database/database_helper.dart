@@ -22,8 +22,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Upgraded from version 1
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
 
@@ -33,6 +34,7 @@ class DatabaseHelper {
       CREATE TABLE transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
+        direction TEXT NOT NULL DEFAULT 'incoming',
         amount REAL NOT NULL,
         sender TEXT,
         recipient TEXT,
@@ -50,6 +52,7 @@ class DatabaseHelper {
         name TEXT NOT NULL,
         regex_pattern TEXT NOT NULL,
         transaction_type TEXT NOT NULL,
+        direction TEXT NOT NULL DEFAULT 'incoming',
         field_mappings TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL
@@ -62,6 +65,10 @@ class DatabaseHelper {
         date TEXT PRIMARY KEY,
         total_count INTEGER NOT NULL,
         total_amount REAL NOT NULL,
+        incoming_count INTEGER NOT NULL DEFAULT 0,
+        incoming_amount REAL NOT NULL DEFAULT 0,
+        outgoing_count INTEGER NOT NULL DEFAULT 0,
+        outgoing_amount REAL NOT NULL DEFAULT 0,
         flexiload_count INTEGER NOT NULL,
         flexiload_amount REAL NOT NULL,
         bkash_count INTEGER NOT NULL,
@@ -76,6 +83,38 @@ class DatabaseHelper {
     // Create indexes for better query performance
     await db.execute('CREATE INDEX idx_transactions_timestamp ON transactions(timestamp)');
     await db.execute('CREATE INDEX idx_transactions_type ON transactions(type)');
+    await db.execute('CREATE INDEX idx_transactions_direction ON transactions(direction)');
+  }
+
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add direction column to transactions table
+      await db.execute('''
+        ALTER TABLE transactions ADD COLUMN direction TEXT NOT NULL DEFAULT 'incoming'
+      ''');
+
+      // Add direction column to patterns table
+      await db.execute('''
+        ALTER TABLE patterns ADD COLUMN direction TEXT NOT NULL DEFAULT 'incoming'
+      ''');
+
+      // Add incoming/outgoing columns to daily_summaries table
+      await db.execute('''
+        ALTER TABLE daily_summaries ADD COLUMN incoming_count INTEGER NOT NULL DEFAULT 0
+      ''');
+      await db.execute('''
+        ALTER TABLE daily_summaries ADD COLUMN incoming_amount REAL NOT NULL DEFAULT 0
+      ''');
+      await db.execute('''
+        ALTER TABLE daily_summaries ADD COLUMN outgoing_count INTEGER NOT NULL DEFAULT 0
+      ''');
+      await db.execute('''
+        ALTER TABLE daily_summaries ADD COLUMN outgoing_amount REAL NOT NULL DEFAULT 0
+      ''');
+
+      // Create index for direction column
+      await db.execute('CREATE INDEX idx_transactions_direction ON transactions(direction)');
+    }
   }
 
   // Transaction operations
@@ -246,8 +285,20 @@ class DatabaseHelper {
 
     int flexiloadCount = 0, bkashCount = 0, utilityBillCount = 0, otherCount = 0;
     double flexiloadAmount = 0, bkashAmount = 0, utilityBillAmount = 0, otherAmount = 0;
+    int incomingCount = 0, outgoingCount = 0;
+    double incomingAmount = 0, outgoingAmount = 0;
 
     for (var txn in transactions) {
+      // Track direction
+      if (txn.direction == TransactionDirection.incoming) {
+        incomingCount++;
+        incomingAmount += txn.amount;
+      } else {
+        outgoingCount++;
+        outgoingAmount += txn.amount;
+      }
+
+      // Track by type
       switch (txn.type) {
         case TransactionType.flexiload:
           flexiloadCount++;
@@ -272,6 +323,10 @@ class DatabaseHelper {
       date: startOfDay,
       totalCount: transactions.length,
       totalAmount: flexiloadAmount + bkashAmount + utilityBillAmount + otherAmount,
+      incomingCount: incomingCount,
+      incomingAmount: incomingAmount,
+      outgoingCount: outgoingCount,
+      outgoingAmount: outgoingAmount,
       flexiloadCount: flexiloadCount,
       flexiloadAmount: flexiloadAmount,
       bkashCount: bkashCount,
