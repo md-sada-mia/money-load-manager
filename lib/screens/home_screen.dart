@@ -161,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            children: TransactionType.values.where((t) => t != TransactionType.other).map((type) {
+            children: TransactionType.values.map((type) {
               return Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: SizedBox(

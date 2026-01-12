@@ -5,8 +5,8 @@ enum TransactionType {
   flexiload,
   bkash,
   utilityBill,
-  other,
-  nagad
+  nagad,
+  other
 }
 
 class _TransactionMetadata {

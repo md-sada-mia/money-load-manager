@@ -384,8 +384,6 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   Widget _buildChart() {
     final data = <_ChartData>[];
     for (final type in TransactionType.values) {
-      if (type == TransactionType.other) continue; // Optional: exclude 'other' or keep it last
-      
       final stats = _getTypeStats(type);
       if (((stats['amount'] as num?) ?? 0) > 0) {
         data.add(_ChartData(
@@ -394,16 +392,6 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
           (stats['outgoingAmount'] as num? ?? 0).toDouble(),
         ));
       }
-    }
-    
-    // Add 'Other' at the end if it has data
-    final otherStats = _getTypeStats(TransactionType.other);
-    if (((otherStats['amount'] as num?) ?? 0) > 0) {
-      data.add(_ChartData(
-        TransactionType.other.displayName,
-        (otherStats['incomingAmount'] as num? ?? 0).toDouble(),
-        (otherStats['outgoingAmount'] as num? ?? 0).toDouble(),
-      ));
     }
 
     if (data.isEmpty) return const SizedBox.shrink();
@@ -552,10 +540,8 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   Widget _buildBreakdown() {
     final breakdownItems = <Widget>[];
     
-    // Process main types
+    // Process all types
     for (final type in TransactionType.values) {
-      if (type == TransactionType.other) continue;
-      
       final stats = _getTypeStats(type);
       breakdownItems.add(_buildBreakdownItem(
         type.displayName,
@@ -568,22 +554,9 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
       breakdownItems.add(const Divider());
     }
     
-    // Process Other type
-    final otherStats = _getTypeStats(TransactionType.other);
-    if (((otherStats['count'] as int?) ?? 0) > 0) {
-      breakdownItems.add(_buildBreakdownItem(
-        TransactionType.other.displayName,
-        (otherStats['count'] as int),
-        (otherStats['incomingAmount'] as num? ?? 0).toDouble(),
-        (otherStats['outgoingAmount'] as num? ?? 0).toDouble(),
-        TransactionType.other.icon,
-        TransactionType.other.color,
-      ));
-    } else {
-      // Remove last divider if added
-      if (breakdownItems.isNotEmpty && breakdownItems.last is Divider) {
-        breakdownItems.removeLast();
-      }
+    // Remove last divider if exists
+    if (breakdownItems.isNotEmpty && breakdownItems.last is Divider) {
+      breakdownItems.removeLast();
     }
 
     return Card(
