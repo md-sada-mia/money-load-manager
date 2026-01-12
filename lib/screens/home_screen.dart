@@ -108,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Tk ${((_todaySummary?['totalAmount'] as num?) ?? 0).toStringAsFixed(2)}',
+              NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format((_todaySummary?['totalAmount'] as num?) ?? 0),
               style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
                 fontWeight: FontWeight.bold,
@@ -192,31 +192,39 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDirectionCard(String label, int count, double amount, IconData icon, Color color) {
+    final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 0);
+    
     return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             Text(
-              count.toString(),
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              currencyFormatter.format(amount),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: color,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Tk ${amount.toStringAsFixed(0)}',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: color,
-                fontWeight: FontWeight.bold,
+              '$count txns',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.outline,
               ),
             ),
           ],
@@ -231,47 +239,79 @@ class _HomeScreenState extends State<HomeScreen> {
     final inAmount = stats['incomingAmount'] as double;
     final outAmount = stats['outgoingAmount'] as double;
     
+    // Bangladesh standard formatting (e.g. 1,50,000)
+    final numberFormatter = NumberFormat.decimalPattern('en_IN');
+    
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              count.toString(),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            // In/Out breakdown
+            // Header: Icon + Label
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                 Icon(Icons.arrow_downward, size: 12, color: Colors.green),
-                 const SizedBox(width: 2),
-                 Text(
-                   inAmount >= 1000 ? '${(inAmount/1000).toStringAsFixed(1)}k' : inAmount.toStringAsFixed(0),
-                   style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold),
-                 ),
+                Icon(icon, color: color, size: 18),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (count > 0) ...[
+                   const SizedBox(width: 4),
+                   Text(
+                     '($count)',
+                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                       color: Theme.of(context).colorScheme.outline,
+                     ),
+                   )
+                ]
+              ],
+            ),
+            const SizedBox(height: 8),
+            
+            // Stats: In/Out vertically stacked
+            // Incoming
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.arrow_downward, size: 12, color: Colors.green),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      numberFormatter.format(inAmount),
+                      style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 2),
+            // Outgoing
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                 Icon(Icons.arrow_upward, size: 12, color: Colors.red),
-                 const SizedBox(width: 2),
-                 Text(
-                   outAmount >= 1000 ? '${(outAmount/1000).toStringAsFixed(1)}k' : outAmount.toStringAsFixed(0),
-                   style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold),
-                 ),
+                Icon(Icons.arrow_upward, size: 12, color: Colors.red),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      numberFormatter.format(outAmount),
+                      style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
               ],
             ),
           ],
