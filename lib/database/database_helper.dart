@@ -252,13 +252,22 @@ class DatabaseHelper {
     
     final transactions = await getTransactionsByDateRange(startOfDay, endOfDay);
 
-    int flexiloadCount = 0, bkashCount = 0, utilityBillCount = 0, otherCount = 0;
-    double flexiloadAmount = 0, bkashAmount = 0, utilityBillAmount = 0, otherAmount = 0;
     int incomingCount = 0, outgoingCount = 0;
     double incomingAmount = 0, outgoingAmount = 0;
+    
+    // Initialize breakdown stats for each type
+    final Map<TransactionType, Map<String, dynamic>> typeStats = {};
+    for (final type in TransactionType.values) {
+      typeStats[type] = {
+        'count': 0,
+        'amount': 0.0,
+        'incomingAmount': 0.0,
+        'outgoingAmount': 0.0,
+      };
+    }
 
     for (var txn in transactions) {
-      // Track direction
+      // Track global direction
       if (txn.direction == TransactionDirection.incoming) {
         incomingCount++;
         incomingAmount += txn.amount;
@@ -268,42 +277,38 @@ class DatabaseHelper {
       }
 
       // Track by type
-      switch (txn.type) {
-        case TransactionType.flexiload:
-          flexiloadCount++;
-          flexiloadAmount += txn.amount;
-          break;
-        case TransactionType.bkash:
-          bkashCount++;
-          bkashAmount += txn.amount;
-          break;
-        case TransactionType.utilityBill:
-          utilityBillCount++;
-          utilityBillAmount += txn.amount;
-          break;
-        case TransactionType.other:
-          otherCount++;
-          otherAmount += txn.amount;
-          break;
+      final stats = typeStats[txn.type]!;
+      stats['count'] = (stats['count'] as int) + 1;
+      stats['amount'] = (stats['amount'] as double) + txn.amount;
+      
+      if (txn.direction == TransactionDirection.incoming) {
+        stats['incomingAmount'] = (stats['incomingAmount'] as double) + txn.amount;
+      } else {
+        stats['outgoingAmount'] = (stats['outgoingAmount'] as double) + txn.amount;
       }
     }
+
+    // Convert keys to string for easier JSON/Map usage if needed, 
+    // but typically we can use the Enum as key in Dart maps.
+    // To match previous string-based approach for UI safety (dynamic map),
+    // we will store the type breakdown using the enum name string as key 
+    // OR just keep using the enum if we update the UI to use it.
+    // Let's use the enum name string for consistency with "generic map" concept.
+    
+    final Map<String, dynamic> typeBreakdown = {};
+    typeStats.forEach((key, value) {
+      typeBreakdown[key.name] = value;
+    });
 
     return {
       'date': startOfDay,
       'totalCount': transactions.length,
-      'totalAmount': flexiloadAmount + bkashAmount + utilityBillAmount + otherAmount,
+      'totalAmount': incomingAmount + outgoingAmount, // Or sum of all types
       'incomingCount': incomingCount,
       'incomingAmount': incomingAmount,
       'outgoingCount': outgoingCount,
       'outgoingAmount': outgoingAmount,
-      'flexiloadCount': flexiloadCount,
-      'flexiloadAmount': flexiloadAmount,
-      'bkashCount': bkashCount,
-      'bkashAmount': bkashAmount,
-      'utilityBillCount': utilityBillCount,
-      'utilityBillAmount': utilityBillAmount,
-      'otherCount': otherCount,
-      'otherAmount': otherAmount,
+      'typeBreakdown': typeBreakdown,
     };
   }
 

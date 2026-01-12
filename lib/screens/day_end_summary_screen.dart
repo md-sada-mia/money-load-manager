@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../models/models.dart';
 import '../services/transaction_service.dart';
 import 'package:flutter/services.dart';
 
@@ -353,16 +354,30 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
     );
   }
 
+  Map<String, dynamic> _getTypeStats(TransactionType type) {
+    if (_summary == null || _summary!['typeBreakdown'] == null) {
+      return {'count': 0, 'amount': 0.0, 'incomingAmount': 0.0, 'outgoingAmount': 0.0};
+    }
+    final breakdown = _summary!['typeBreakdown'] as Map<String, dynamic>;
+    return (breakdown[type.name] as Map<String, dynamic>?) ?? 
+           {'count': 0, 'amount': 0.0, 'incomingAmount': 0.0, 'outgoingAmount': 0.0};
+  }
+
   Widget _buildChart() {
+    final flexiloadStats = _getTypeStats(TransactionType.flexiload);
+    final bkashStats = _getTypeStats(TransactionType.bkash);
+    final billStats = _getTypeStats(TransactionType.utilityBill);
+    final otherStats = _getTypeStats(TransactionType.other);
+
     final data = [
-      if (((_summary!['flexiloadAmount'] as num?) ?? 0) > 0)
-        _ChartData('Flexiload', ((_summary!['flexiloadAmount'] as num?) ?? 0).toDouble(), Colors.blue),
-      if (((_summary!['bkashAmount'] as num?) ?? 0) > 0)
-        _ChartData('bKash', ((_summary!['bkashAmount'] as num?) ?? 0).toDouble(), Colors.pink),
-      if (((_summary!['utilityBillAmount'] as num?) ?? 0) > 0)
-        _ChartData('Bills', ((_summary!['utilityBillAmount'] as num?) ?? 0).toDouble(), Colors.orange),
-      if (((_summary!['otherAmount'] as num?) ?? 0) > 0)
-        _ChartData('Other', ((_summary!['otherAmount'] as num?) ?? 0).toDouble(), Colors.grey),
+      if (((flexiloadStats['amount'] as num?) ?? 0) > 0)
+        _ChartData('Flexiload', (flexiloadStats['amount'] as num).toDouble(), Colors.blue),
+      if (((bkashStats['amount'] as num?) ?? 0) > 0)
+        _ChartData('bKash', (bkashStats['amount'] as num).toDouble(), Colors.pink),
+      if (((billStats['amount'] as num?) ?? 0) > 0)
+        _ChartData('Bills', (billStats['amount'] as num).toDouble(), Colors.orange),
+      if (((otherStats['amount'] as num?) ?? 0) > 0)
+        _ChartData('Other', (otherStats['amount'] as num).toDouble(), Colors.grey),
     ];
 
     if (data.isEmpty) return const SizedBox.shrink();
@@ -439,6 +454,11 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   }
 
   Widget _buildBreakdown() {
+    final flexiloadStats = _getTypeStats(TransactionType.flexiload);
+    final bkashStats = _getTypeStats(TransactionType.bkash);
+    final billStats = _getTypeStats(TransactionType.utilityBill);
+    final otherStats = _getTypeStats(TransactionType.other);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -454,33 +474,34 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             const SizedBox(height: 16),
             _buildBreakdownItem(
               'Flexiload',
-              (_summary!['flexiloadCount'] as int?) ?? 0,
-              ((_summary!['flexiloadAmount'] as num?) ?? 0).toDouble(),
+              (flexiloadStats['count'] as int),
+              (flexiloadStats['amount'] as num).toDouble(),
               Icons.phone_android,
               Colors.blue,
             ),
             const Divider(),
             _buildBreakdownItem(
               'bKash / Mobile Money',
-              (_summary!['bkashCount'] as int?) ?? 0,
-              ((_summary!['bkashAmount'] as num?) ?? 0).toDouble(),
+              (bkashStats['count'] as int),
+              (bkashStats['amount'] as num).toDouble(),
               Icons.account_balance_wallet,
               Colors.pink,
             ),
             const Divider(),
             _buildBreakdownItem(
               'Utility Bills',
-              (_summary!['utilityBillCount'] as int?) ?? 0,
-              ((_summary!['utilityBillAmount'] as num?) ?? 0).toDouble(),
+              (billStats['count'] as int),
+              (billStats['amount'] as num).toDouble(),
               Icons.receipt_long,
               Colors.orange,
             ),
-            if (((_summary!['otherCount'] as int?) ?? 0) > 0) ...[
+            if (((otherStats['count'] as int?) ?? 0) > 0) ...[
               const Divider(),
               _buildBreakdownItem(
                 'Other',
-                (_summary!['otherCount'] as int?) ?? 0,
-                ((_summary!['otherAmount'] as num?) ?? 0).toDouble(),
+                (otherStats['count'] as int),
+                (otherStats['amount'] as num).toDouble(),
+
                 Icons.more_horiz,
                 Colors.grey,
               ),

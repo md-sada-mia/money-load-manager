@@ -160,30 +160,27 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildStatCard(
+              child: _buildDetailedStatCard(
                 'Flexiload',
-                (_todaySummary?['flexiloadCount'] as int?) ?? 0,
-                ((_todaySummary?['flexiloadAmount'] as num?) ?? 0).toDouble(),
+                TransactionType.flexiload,
                 Icons.phone_android,
                 Colors.blue,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildStatCard(
+              child: _buildDetailedStatCard(
                 'bKash',
-                (_todaySummary?['bkashCount'] as int?) ?? 0,
-                ((_todaySummary?['bkashAmount'] as num?) ?? 0).toDouble(),
+                TransactionType.bkash,
                 Icons.account_balance_wallet,
                 Colors.pink,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildStatCard(
+              child: _buildDetailedStatCard(
                 'Bills',
-                (_todaySummary?['utilityBillCount'] as int?) ?? 0,
-                ((_todaySummary?['utilityBillAmount'] as num?) ?? 0).toDouble(),
+                TransactionType.utilityBill,
                 Icons.receipt_long,
                 Colors.orange,
               ),
@@ -228,7 +225,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildStatCard(String label, int count, double amount, IconData icon, Color color) {
+  Widget _buildDetailedStatCard(String label, TransactionType type, IconData icon, Color color) {
+    final stats = _getTypeStats(type);
+    final count = stats['count'] as int;
+    final inAmount = stats['incomingAmount'] as double;
+    final outAmount = stats['outgoingAmount'] as double;
+    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -247,18 +249,44 @@ class _HomeScreenState extends State<HomeScreen> {
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Tk ${amount.toStringAsFixed(0)}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
+            const SizedBox(height: 8),
+            // In/Out breakdown
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                 Icon(Icons.arrow_downward, size: 12, color: Colors.green),
+                 const SizedBox(width: 2),
+                 Text(
+                   inAmount >= 1000 ? '${(inAmount/1000).toStringAsFixed(1)}k' : inAmount.toStringAsFixed(0),
+                   style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold),
+                 ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                 Icon(Icons.arrow_upward, size: 12, color: Colors.red),
+                 const SizedBox(width: 2),
+                 Text(
+                   outAmount >= 1000 ? '${(outAmount/1000).toStringAsFixed(1)}k' : outAmount.toStringAsFixed(0),
+                   style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold),
+                 ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Map<String, dynamic> _getTypeStats(TransactionType type) {
+    if (_todaySummary == null || _todaySummary!['typeBreakdown'] == null) {
+      return {'count': 0, 'amount': 0.0, 'incomingAmount': 0.0, 'outgoingAmount': 0.0};
+    }
+    final breakdown = _todaySummary!['typeBreakdown'] as Map<String, dynamic>;
+    return (breakdown[type.name] as Map<String, dynamic>?) ?? 
+           {'count': 0, 'amount': 0.0, 'incomingAmount': 0.0, 'outgoingAmount': 0.0};
   }
 
   Widget _buildActionButtons() {

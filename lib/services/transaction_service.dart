@@ -111,6 +111,8 @@ class TransactionService {
   Future<String> exportSummaryToText(DateTime date) async {
     final summary = await getSummaryForDate(date);
     final dateStr = DateFormat('dd MMM yyyy').format(date);
+    
+    final typeBreakdown = summary['typeBreakdown'] as Map<String, dynamic>;
 
     final buffer = StringBuffer();
     buffer.writeln('Daily Summary - $dateStr');
@@ -121,21 +123,38 @@ class TransactionService {
     buffer.writeln();
     buffer.writeln('Breakdown:');
     buffer.writeln('-' * 40);
-    buffer.writeln('Flexiload:');
-    buffer.writeln('  Count: ${(summary['flexiloadCount'] as int?) ?? 0}');
-    buffer.writeln('  Amount: Tk ${((summary['flexiloadAmount'] as num?) ?? 0).toStringAsFixed(2)}');
-    buffer.writeln();
-    buffer.writeln('bKash/Mobile Money:');
-    buffer.writeln('  Count: ${(summary['bkashCount'] as int?) ?? 0}');
-    buffer.writeln('  Amount: Tk ${((summary['bkashAmount'] as num?) ?? 0).toStringAsFixed(2)}');
-    buffer.writeln();
-    buffer.writeln('Utility Bills:');
-    buffer.writeln('  Count: ${(summary['utilityBillCount'] as int?) ?? 0}');
-    buffer.writeln('  Amount: Tk ${((summary['utilityBillAmount'] as num?) ?? 0).toStringAsFixed(2)}');
-    buffer.writeln();
-    buffer.writeln('Other:');
-    buffer.writeln('  Count: ${(summary['otherCount'] as int?) ?? 0}');
-    buffer.writeln('  Amount: Tk ${((summary['otherAmount'] as num?) ?? 0).toStringAsFixed(2)}');
+    
+    // Sort keys to maintain consistent order if possible, or just iterate
+    // Order: flexiload, bkash, utilityBill, other
+    final orderedKeys = [
+      TransactionType.flexiload.name,
+      TransactionType.bkash.name,
+      TransactionType.utilityBill.name,
+      TransactionType.other.name
+    ];
+    
+    for (final key in orderedKeys) {
+      final stats = typeBreakdown[key] as Map<String, dynamic>?;
+      if (stats != null) {
+        // Beautify the label
+        String label = key;
+        if (key == TransactionType.flexiload.name) {
+          label = 'Flexiload';
+        } else if (key == TransactionType.bkash.name) {
+          label = 'bKash/Mobile Money';
+        } else if (key == TransactionType.utilityBill.name) {
+          label = 'Utility Bills';
+        } else if (key == TransactionType.other.name) {
+          label = 'Other';
+        }
+
+        buffer.writeln('$label:');
+        buffer.writeln('  Count: ${stats['count']}');
+        buffer.writeln('  Amount: Tk ${(stats['amount'] as double).toStringAsFixed(2)}');
+        buffer.writeln('  (In: Tk ${(stats['incomingAmount'] as double).toStringAsFixed(2)}, Out: Tk ${(stats['outgoingAmount'] as double).toStringAsFixed(2)})');
+        buffer.writeln();
+      }
+    }
 
     return buffer.toString();
   }
