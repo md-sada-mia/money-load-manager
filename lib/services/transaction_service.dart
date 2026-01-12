@@ -1,6 +1,7 @@
 import '../models/models.dart';
 import '../database/database_helper.dart';
 import 'package:intl/intl.dart';
+import 'sms_listener.dart';
 
 /// Service for managing transactions
 class TransactionService {
@@ -172,5 +173,11 @@ class TransactionService {
     }).toList();
     
     return results;
+  }
+  /// Rescan SMS for a specific date
+  Future<int> rescanForDate(DateTime date) async {
+    // Import helper to avoid circular dependency issues if any
+    // We already moved generic SMS logic to SmsListener
+    return await SmsListener.rescanTransactionsForDate(date);
   }
 }

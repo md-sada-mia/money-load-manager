@@ -18,6 +18,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   final TransactionService _transactionService = TransactionService();
   DailySummary? _summary;
   bool _isLoading = true;
+  bool _isRescanning = false;
   late DateTime _selectedDate;
 
   @override
@@ -82,6 +83,37 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
     }
   }
 
+  Future<void> _rescan() async {
+    setState(() => _isRescanning = true);
+
+    try {
+      // Use the selected date (or default to NOW if logic requires, but passed date is better)
+      final count = await _transactionService.rescanForDate(_selectedDate);
+      
+      setState(() => _isRescanning = false);
+      
+      if (mounted) {
+        if (count > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Rescan complete. Found $count new transactions.')),
+          );
+          _loadSummary(); // Refresh data
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rescan complete. No new transactions found.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isRescanning = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error rescanning: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -96,6 +128,19 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             icon: const Icon(Icons.share),
             onPressed: _exportSummary,
           ),
+          if (_isRescanning)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.sync),
+              tooltip: 'Rescan SMS',
+              onPressed: _rescan,
+            ),
         ],
       ),
       body: _isLoading

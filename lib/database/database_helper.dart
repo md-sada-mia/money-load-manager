@@ -130,6 +130,17 @@ class DatabaseHelper {
     );
   }
 
+  Future<bool> transactionExists(String rawSms) async {
+    final db = await database;
+    final result = await db.query(
+      'transactions',
+      where: 'raw_sms = ?',
+      whereArgs: [rawSms],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
   // Pattern operations
   Future<int> createPattern(SmsPattern pattern) async {
     final db = await database;

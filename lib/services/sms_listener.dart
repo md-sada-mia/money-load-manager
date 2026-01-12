@@ -116,4 +116,58 @@ class SmsListener {
       return 0;
     }
   }
+  /// Rescan and import transactions for a specific date
+  static Future<int> rescanTransactionsForDate(DateTime date) async {
+    try {
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
+      
+      final messages = await telephony.getInboxSms(
+        columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
+        sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
+      );
+
+      int importCount = 0;
+
+      for (final message in messages) {
+        final msgDate = DateTime.fromMillisecondsSinceEpoch(message.date ?? 0);
+        
+        // Filter messages strictly within the date range
+        if (msgDate.isBefore(startOfDay) || msgDate.isAfter(endOfDay)) {
+          continue;
+        }
+
+        final smsBody = message.body ?? '';
+        final sender = message.address ?? '';
+        
+        if (smsBody.isEmpty) continue;
+
+        // Check for duplicates before parsing to save resources
+        // Note: We check raw SMS content as unique identifier
+        final exists = await _db.transactionExists(smsBody);
+        if (exists) continue;
+
+        final transaction = await _parser.parseSms(smsBody, sender);
+        
+        if (transaction != null) {
+          // Use the actual SMS timestamp
+          final txnWithCorrectTime = transaction.copyWith(timestamp: msgDate);
+          
+          await _db.createTransaction(txnWithCorrectTime);
+          importCount++;
+        }
+      }
+
+      if (importCount > 0) {
+        // Recalculate daily summary for that date
+        final summary = await _db.calculateDailySummary(startOfDay);
+        await _db.saveDailySummary(summary);
+      }
+
+      return importCount;
+    } catch (e) {
+      print('Error rescanning transactions: $e');
+      return 0;
+    }
+  }
 }
