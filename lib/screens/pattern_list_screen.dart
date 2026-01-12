@@ -109,6 +109,10 @@ class _PatternListScreenState extends State<PatternListScreen> {
         icon = Icons.receipt_long;
         color = Colors.orange;
         break;
+      case TransactionType.nagad:
+        icon = Icons.account_balance_wallet;
+        color = Colors.redAccent;
+        break;
       case TransactionType.other:
         icon = Icons.more_horiz;
         color = Colors.grey;

@@ -118,6 +118,19 @@ class DefaultPatterns {
         direction: TransactionDirection.incoming,
         fieldMappings: {'amount': '1'},
       ),
+      SmsPattern(
+        name: 'Nagad Received',
+        regexPattern: r'Money\s+Received\.\s+Amount:\s*Tk\.?\s*([\d,]+(?:\.\d{2})?)\s+Sender:\s*(\d+)\s+Ref:\s*(.*?)\s+TxnID:\s*(\w+)\s+Balance:\s*Tk\.?\s*([\d,]+(?:\.\d{2})?)',
+        transactionType: TransactionType.nagad,
+        direction: TransactionDirection.incoming,
+        fieldMappings: {
+          'amount': '1',
+          'sender': '2',
+          'reference': '3',
+          'transactionId': '4',
+          'balance': '5',
+        },
+      )
     ];
   }
 }

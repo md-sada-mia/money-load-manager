@@ -384,6 +384,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   Widget _buildChart() {
     final flexiloadStats = _getTypeStats(TransactionType.flexiload);
     final bkashStats = _getTypeStats(TransactionType.bkash);
+    final nagadStats = _getTypeStats(TransactionType.nagad);
     final billStats = _getTypeStats(TransactionType.utilityBill);
     final otherStats = _getTypeStats(TransactionType.other);
 
@@ -399,6 +400,12 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
           'bKash', 
           (bkashStats['incomingAmount'] as num? ?? 0).toDouble(),
           (bkashStats['outgoingAmount'] as num? ?? 0).toDouble(),
+        ),
+      if (((nagadStats['amount'] as num?) ?? 0) > 0)
+        _ChartData(
+          'Nagad', 
+          (nagadStats['incomingAmount'] as num? ?? 0).toDouble(),
+          (nagadStats['outgoingAmount'] as num? ?? 0).toDouble(),
         ),
       if (((billStats['amount'] as num?) ?? 0) > 0)
         _ChartData(
@@ -560,6 +567,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   Widget _buildBreakdown() {
     final flexiloadStats = _getTypeStats(TransactionType.flexiload);
     final bkashStats = _getTypeStats(TransactionType.bkash);
+    final nagadStats = _getTypeStats(TransactionType.nagad);
     final billStats = _getTypeStats(TransactionType.utilityBill);
     final otherStats = _getTypeStats(TransactionType.other);
 
@@ -592,6 +600,15 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
               (bkashStats['outgoingAmount'] as num? ?? 0).toDouble(),
               Icons.account_balance_wallet,
               Colors.pink,
+            ),
+            const Divider(),
+            _buildBreakdownItem(
+              'Nagad',
+              (nagadStats['count'] as int),
+              (nagadStats['incomingAmount'] as num? ?? 0).toDouble(),
+              (nagadStats['outgoingAmount'] as num? ?? 0).toDouble(),
+              Icons.account_balance_wallet,
+              Colors.redAccent,
             ),
             const Divider(),
             _buildBreakdownItem(
@@ -734,6 +751,10 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
       case TransactionType.bkash:
         icon = Icons.account_balance_wallet;
         color = Colors.pink;
+        break;
+      case TransactionType.nagad:
+        icon = Icons.account_balance_wallet;
+        color = Colors.redAccent;
         break;
       case TransactionType.utilityBill:
         icon = Icons.receipt_long;

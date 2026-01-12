@@ -190,6 +190,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 child: Text('Utility Bills'),
               ),
               const PopupMenuItem(
+                value: 'type_nagad',
+                child: Text('Nagad'),
+              ),
+              const PopupMenuItem(
                 value: 'type_other',
                 child: Text('Other'),
               ),
@@ -360,6 +364,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       case TransactionType.utilityBill:
         icon = Icons.receipt_long;
         color = Colors.orange;
+        break;
+      case TransactionType.nagad:
+        icon = Icons.account_balance_wallet;
+        color = Colors.redAccent;
         break;
       case TransactionType.other:
         icon = Icons.more_horiz;

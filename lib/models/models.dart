@@ -4,6 +4,7 @@ enum TransactionType {
   bkash,
   utilityBill,
   other,
+  nagad
 }
 
 /// Transaction direction (money flow)
