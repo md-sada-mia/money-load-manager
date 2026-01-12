@@ -340,7 +340,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                   ),
                 ),
                 Text(
-                  '${isPositive ? '+' : ''}Tk ${netBalance.toStringAsFixed(2)}',
+                  '${netBalance >= 0 ? '+' : ''}${NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format(netBalance)}',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: isPositive ? Colors.green : Colors.red,
@@ -537,7 +537,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             ),
           ),
           Text(
-            'Tk ${amount.toStringAsFixed(2)}',
+            NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format(amount),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: color,

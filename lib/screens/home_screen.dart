@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../services/transaction_service.dart';
 import 'transactions_screen.dart';
+import 'transaction_detail_screen.dart';
 import 'day_end_summary_screen.dart';
 import 'settings_screen.dart';
 
@@ -465,7 +466,7 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
+          backgroundColor: color.withValues(alpha: 0.1),
           child: Icon(icon, color: color),
         ),
         title: Row(
@@ -481,7 +482,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(width: 6),
             Text(
-              'Tk ${txn.amount.toStringAsFixed(2)}',
+              NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format(txn.amount),
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
@@ -490,7 +491,20 @@ class _HomeScreenState extends State<HomeScreen> {
           '${txn.type.name} • ${DateFormat('h:mm a').format(txn.timestamp)}',
         ),
         trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TransactionDetailScreen(transaction: txn),
+            ),
+          ).then((deleted) {
+            if (deleted == true) {
+              _loadData(); // Refresh dashboard if transaction was deleted
+            }
+          });
+        },
       ),
     );
+
   }
 }

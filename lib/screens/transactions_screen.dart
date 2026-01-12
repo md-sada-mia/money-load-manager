@@ -239,7 +239,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
               ),
               Text(
-                'Tk ${totalAmount.toStringAsFixed(2)}',
+                NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format(totalAmount),
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.bold,
@@ -281,7 +281,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
+          backgroundColor: color.withValues(alpha: 0.1),
           child: Icon(icon, color: color),
         ),
         title: Row(
@@ -297,7 +297,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
             const SizedBox(width: 6),
             Text(
-              'Tk ${txn.amount.toStringAsFixed(2)}',
+              NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format(txn.amount),
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
