@@ -54,16 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Money Load Manager'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.school),
-            tooltip: 'Training Manager',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const TrainingScreen()),
-              ).then((_) => _loadData());
-            },
-          ),
+
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Settings',

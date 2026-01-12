@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/sms_parser.dart';
@@ -303,6 +304,14 @@ class _TrainingScreenState extends State<TrainingScreen> {
             child: const Text('Save Pattern'),
           ),
         ),
+        const SizedBox(width: 12),
+        if (_extractedGroups != null)
+        Expanded(
+          child: FilledButton.tonal(
+            onPressed: _copyCode,
+            child: const Text('Copy Code'),
+          ),
+        ),
       ],
     );
   }
@@ -377,6 +386,38 @@ class _TrainingScreenState extends State<TrainingScreen> {
           SnackBar(content: Text('Error saving pattern: $e')),
         );
       }
+    }
+  }
+
+  void _copyCode() {
+    final name = _nameController.text.trim();
+    final pattern = _patternController.text.trim();
+    
+    // Create mapping string
+    final mappingBuffer = StringBuffer();
+    if (_extractedGroups != null) {
+      mappingBuffer.write("{'amount': '1'");
+      if (_extractedGroups!.length > 1) {
+        mappingBuffer.write(", 'sender': '2'");
+      }
+      mappingBuffer.write("}");
+    } else {
+       mappingBuffer.write("{'amount': '1'}");
+    }
+
+    final code = '''
+      SmsPattern(
+        name: '$name',
+        regexPattern: r'$pattern',
+        transactionType: ${_selectedType.toString()},
+        fieldMappings: ${mappingBuffer.toString()},
+      ),''';
+
+    Clipboard.setData(ClipboardData(text: code));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dart code copied to clipboard')),
+      );
     }
   }
 

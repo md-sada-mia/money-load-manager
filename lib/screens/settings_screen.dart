@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import '../models/models.dart';
+import 'training_screen.dart';
 import '../services/sms_listener.dart';
 import '../services/default_patterns.dart';
 import '../database/database_helper.dart';
@@ -92,6 +95,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
           const Divider(),
+          if (kDebugMode) ...[
+            _buildSection(
+              'Developer Options',
+              [
+                ListTile(
+                  leading: const Icon(Icons.school),
+                  title: const Text('Pattern Training'),
+                  subtitle: const Text('Train and export Regex patterns'),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const TrainingScreen()),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const Divider(),
+          ],
           _buildSection(
             'About',
             [
