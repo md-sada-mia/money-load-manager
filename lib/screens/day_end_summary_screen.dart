@@ -199,9 +199,9 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
         const SizedBox(height: 24),
         _buildChart(),
         const SizedBox(height: 24),
-        _buildTransactionList(),
-        const SizedBox(height: 24),
         _buildBreakdown(),
+        const SizedBox(height: 24),
+        _buildTransactionList(),
       ],
     );
   }
