@@ -1,4 +1,4 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite/sqflite.dart' hide Transaction;
 import 'package:path/path.dart';
 import '../models/models.dart';
 

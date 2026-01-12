@@ -164,7 +164,7 @@ class TransactionService {
     final allTransactions = await _db.getAllTransactions();
     final lowerQuery = query.toLowerCase();
 
-    final results = allTransactions.where((txn) {
+    final results = allTransactions.where((Transaction txn) {
       return txn.rawSms.toLowerCase().contains(lowerQuery) ||
              (txn.sender?.toLowerCase().contains(lowerQuery) ?? false) ||
              (txn.recipient?.toLowerCase().contains(lowerQuery) ?? false) ||
