@@ -382,44 +382,29 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   }
 
   Widget _buildChart() {
-    final flexiloadStats = _getTypeStats(TransactionType.flexiload);
-    final bkashStats = _getTypeStats(TransactionType.bkash);
-    final nagadStats = _getTypeStats(TransactionType.nagad);
-    final billStats = _getTypeStats(TransactionType.utilityBill);
+    final data = <_ChartData>[];
+    for (final type in TransactionType.values) {
+      if (type == TransactionType.other) continue; // Optional: exclude 'other' or keep it last
+      
+      final stats = _getTypeStats(type);
+      if (((stats['amount'] as num?) ?? 0) > 0) {
+        data.add(_ChartData(
+          type.displayName,
+          (stats['incomingAmount'] as num? ?? 0).toDouble(),
+          (stats['outgoingAmount'] as num? ?? 0).toDouble(),
+        ));
+      }
+    }
+    
+    // Add 'Other' at the end if it has data
     final otherStats = _getTypeStats(TransactionType.other);
-
-    final data = [
-      if (((flexiloadStats['amount'] as num?) ?? 0) > 0)
-        _ChartData(
-          'Flexiload', 
-          (flexiloadStats['incomingAmount'] as num? ?? 0).toDouble(),
-          (flexiloadStats['outgoingAmount'] as num? ?? 0).toDouble(),
-        ),
-      if (((bkashStats['amount'] as num?) ?? 0) > 0)
-        _ChartData(
-          'bKash', 
-          (bkashStats['incomingAmount'] as num? ?? 0).toDouble(),
-          (bkashStats['outgoingAmount'] as num? ?? 0).toDouble(),
-        ),
-      if (((nagadStats['amount'] as num?) ?? 0) > 0)
-        _ChartData(
-          'Nagad', 
-          (nagadStats['incomingAmount'] as num? ?? 0).toDouble(),
-          (nagadStats['outgoingAmount'] as num? ?? 0).toDouble(),
-        ),
-      if (((billStats['amount'] as num?) ?? 0) > 0)
-        _ChartData(
-          'Bills', 
-          (billStats['incomingAmount'] as num? ?? 0).toDouble(),
-          (billStats['outgoingAmount'] as num? ?? 0).toDouble(),
-        ),
-      if (((otherStats['amount'] as num?) ?? 0) > 0)
-        _ChartData(
-          'Other', 
-          (otherStats['incomingAmount'] as num? ?? 0).toDouble(),
-          (otherStats['outgoingAmount'] as num? ?? 0).toDouble(),
-        ),
-    ];
+    if (((otherStats['amount'] as num?) ?? 0) > 0) {
+      data.add(_ChartData(
+        TransactionType.other.displayName,
+        (otherStats['incomingAmount'] as num? ?? 0).toDouble(),
+        (otherStats['outgoingAmount'] as num? ?? 0).toDouble(),
+      ));
+    }
 
     if (data.isEmpty) return const SizedBox.shrink();
     
@@ -565,11 +550,41 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   }
 
   Widget _buildBreakdown() {
-    final flexiloadStats = _getTypeStats(TransactionType.flexiload);
-    final bkashStats = _getTypeStats(TransactionType.bkash);
-    final nagadStats = _getTypeStats(TransactionType.nagad);
-    final billStats = _getTypeStats(TransactionType.utilityBill);
+    final breakdownItems = <Widget>[];
+    
+    // Process main types
+    for (final type in TransactionType.values) {
+      if (type == TransactionType.other) continue;
+      
+      final stats = _getTypeStats(type);
+      breakdownItems.add(_buildBreakdownItem(
+        type.displayName,
+        (stats['count'] as int),
+        (stats['incomingAmount'] as num? ?? 0).toDouble(),
+        (stats['outgoingAmount'] as num? ?? 0).toDouble(),
+        type.icon,
+        type.color,
+      ));
+      breakdownItems.add(const Divider());
+    }
+    
+    // Process Other type
     final otherStats = _getTypeStats(TransactionType.other);
+    if (((otherStats['count'] as int?) ?? 0) > 0) {
+      breakdownItems.add(_buildBreakdownItem(
+        TransactionType.other.displayName,
+        (otherStats['count'] as int),
+        (otherStats['incomingAmount'] as num? ?? 0).toDouble(),
+        (otherStats['outgoingAmount'] as num? ?? 0).toDouble(),
+        TransactionType.other.icon,
+        TransactionType.other.color,
+      ));
+    } else {
+      // Remove last divider if added
+      if (breakdownItems.isNotEmpty && breakdownItems.last is Divider) {
+        breakdownItems.removeLast();
+      }
+    }
 
     return Card(
       child: Padding(
@@ -584,52 +599,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            _buildBreakdownItem(
-              'Flexiload',
-              (flexiloadStats['count'] as int),
-              (flexiloadStats['incomingAmount'] as num? ?? 0).toDouble(),
-              (flexiloadStats['outgoingAmount'] as num? ?? 0).toDouble(),
-              Icons.phone_android,
-              Colors.blue,
-            ),
-            const Divider(),
-            _buildBreakdownItem(
-              'bKash / Mobile Money',
-              (bkashStats['count'] as int),
-              (bkashStats['incomingAmount'] as num? ?? 0).toDouble(),
-              (bkashStats['outgoingAmount'] as num? ?? 0).toDouble(),
-              Icons.account_balance_wallet,
-              Colors.pink,
-            ),
-            const Divider(),
-            _buildBreakdownItem(
-              'Nagad',
-              (nagadStats['count'] as int),
-              (nagadStats['incomingAmount'] as num? ?? 0).toDouble(),
-              (nagadStats['outgoingAmount'] as num? ?? 0).toDouble(),
-              Icons.account_balance_wallet,
-              Colors.redAccent,
-            ),
-            const Divider(),
-            _buildBreakdownItem(
-              'Utility Bills',
-              (billStats['count'] as int),
-              (billStats['incomingAmount'] as num? ?? 0).toDouble(),
-              (billStats['outgoingAmount'] as num? ?? 0).toDouble(),
-              Icons.receipt_long,
-              Colors.orange,
-            ),
-            if (((otherStats['count'] as int?) ?? 0) > 0) ...[
-              const Divider(),
-              _buildBreakdownItem(
-                'Other',
-                (otherStats['count'] as int),
-                (otherStats['incomingAmount'] as num? ?? 0).toDouble(),
-                (otherStats['outgoingAmount'] as num? ?? 0).toDouble(),
-                Icons.more_horiz,
-                Colors.grey,
-              ),
-            ],
+            ...breakdownItems,
           ],
         ),
       ),

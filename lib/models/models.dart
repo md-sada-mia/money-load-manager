@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Transaction types supported by the app
 enum TransactionType {
   flexiload,
@@ -5,6 +7,52 @@ enum TransactionType {
   utilityBill,
   other,
   nagad
+}
+
+class _TransactionMetadata {
+  final String displayName;
+  final IconData icon;
+  final Color color;
+
+  const _TransactionMetadata({
+    required this.displayName,
+    required this.icon,
+    required this.color,
+  });
+}
+
+extension TransactionTypeExtension on TransactionType {
+  static const Map<TransactionType, _TransactionMetadata> _metadata = {
+    TransactionType.flexiload: _TransactionMetadata(
+      displayName: 'Flexiload',
+      icon: Icons.phone_android,
+      color: Colors.blue,
+    ),
+    TransactionType.bkash: _TransactionMetadata(
+      displayName: 'bKash',
+      icon: Icons.account_balance_wallet,
+      color: Colors.pink,
+    ),
+    TransactionType.nagad: _TransactionMetadata(
+      displayName: 'Nagad',
+      icon: Icons.account_balance_wallet,
+      color: Colors.redAccent,
+    ),
+    TransactionType.utilityBill: _TransactionMetadata(
+      displayName: 'Utility Bill',
+      icon: Icons.receipt_long,
+      color: Colors.orange,
+    ),
+    TransactionType.other: _TransactionMetadata(
+      displayName: 'Other',
+      icon: Icons.more_horiz,
+      color: Colors.grey,
+    ),
+  };
+
+  String get displayName => _metadata[this]!.displayName;
+  IconData get icon => _metadata[this]!.icon;
+  Color get color => _metadata[this]!.color;
 }
 
 /// Transaction direction (money flow)

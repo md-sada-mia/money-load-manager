@@ -93,31 +93,8 @@ class _PatternListScreenState extends State<PatternListScreen> {
   }
 
   Widget _buildPatternCard(SmsPattern pattern) {
-    IconData icon;
-    Color color;
-    
-    switch (pattern.transactionType) {
-      case TransactionType.flexiload:
-        icon = Icons.phone_android;
-        color = Colors.blue;
-        break;
-      case TransactionType.bkash:
-        icon = Icons.account_balance_wallet;
-        color = Colors.pink;
-        break;
-      case TransactionType.utilityBill:
-        icon = Icons.receipt_long;
-        color = Colors.orange;
-        break;
-      case TransactionType.nagad:
-        icon = Icons.account_balance_wallet;
-        color = Colors.redAccent;
-        break;
-      case TransactionType.other:
-        icon = Icons.more_horiz;
-        color = Colors.grey;
-        break;
-    }
+    IconData icon = pattern.transactionType.icon;
+    Color color = pattern.transactionType.color;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

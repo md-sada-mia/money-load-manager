@@ -34,31 +34,8 @@ class TransactionDetailScreen extends StatelessWidget {
   }
 
   Widget _buildAmountCard(BuildContext context) {
-    IconData icon;
-    Color color;
-    
-    switch (transaction.type) {
-      case TransactionType.flexiload:
-        icon = Icons.phone_android;
-        color = Colors.blue;
-        break;
-      case TransactionType.bkash:
-        icon = Icons.account_balance_wallet;
-        color = Colors.pink;
-        break;
-      case TransactionType.utilityBill:
-        icon = Icons.receipt_long;
-        color = Colors.orange;
-        break;
-      case TransactionType.nagad:
-        icon = Icons.account_balance_wallet;
-        color = Colors.redAccent;
-        break;
-      case TransactionType.other:
-        icon = Icons.more_horiz;
-        color = Colors.grey;
-        break;
-    }
+    IconData icon = transaction.type.icon;
+    Color color = transaction.type.color;
 
     return Card(
       color: color.withOpacity(0.1),

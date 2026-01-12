@@ -158,35 +158,24 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 12),
         // Type cards
-        Row(
-          children: [
-            Expanded(
-              child: _buildDetailedStatCard(
-                'Flexiload',
-                TransactionType.flexiload,
-                Icons.phone_android,
-                Colors.blue,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildDetailedStatCard(
-                'bKash',
-                TransactionType.bkash,
-                Icons.account_balance_wallet,
-                Colors.pink,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildDetailedStatCard(
-                'Bills',
-                TransactionType.utilityBill,
-                Icons.receipt_long,
-                Colors.orange,
-              ),
-            ),
-          ],
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: TransactionType.values.where((t) => t != TransactionType.other).map((type) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: SizedBox(
+                   width: 110, // Fixed width for consistent look
+                   child: _buildDetailedStatCard(
+                    type.displayName,
+                    type,
+                    type.icon,
+                    type.color,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ),
       ],
     );
@@ -440,31 +429,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTransactionTile(Transaction txn) {
-    IconData icon;
-    Color color;
-    
-    switch (txn.type) {
-      case TransactionType.flexiload:
-        icon = Icons.phone_android;
-        color = Colors.blue;
-        break;
-      case TransactionType.bkash:
-        icon = Icons.account_balance_wallet;
-        color = Colors.pink;
-        break;
-      case TransactionType.utilityBill:
-        icon = Icons.receipt_long;
-        color = Colors.orange;
-        break;
-      case TransactionType.nagad:
-        icon = Icons.account_balance_wallet;
-        color = Colors.redAccent;
-        break;
-      case TransactionType.other:
-        icon = Icons.more_horiz;
-        color = Colors.grey;
-        break;
-    }
+    IconData icon = txn.type.icon;
+    Color color = txn.type.color;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),

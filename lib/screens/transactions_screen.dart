@@ -177,26 +177,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 value: 'type_all',
                 child: Text('All Types'),
               ),
-              const PopupMenuItem(
-                value: 'type_flexiload',
-                child: Text('Flexiload'),
-              ),
-              const PopupMenuItem(
-                value: 'type_bkash',
-                child: Text('bKash'),
-              ),
-              const PopupMenuItem(
-                value: 'type_utilityBill',
-                child: Text('Utility Bills'),
-              ),
-              const PopupMenuItem(
-                value: 'type_nagad',
-                child: Text('Nagad'),
-              ),
-              const PopupMenuItem(
-                value: 'type_other',
-                child: Text('Other'),
-              ),
+              ...TransactionType.values.map((type) => PopupMenuItem(
+                value: 'type_${type.name}',
+                child: Text(type.displayName),
+              )),
               const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'header_direction',
@@ -349,31 +333,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildTransactionTile(Transaction txn) {
-    IconData icon;
-    Color color;
-    
-    switch (txn.type) {
-      case TransactionType.flexiload:
-        icon = Icons.phone_android;
-        color = Colors.blue;
-        break;
-      case TransactionType.bkash:
-        icon = Icons.account_balance_wallet;
-        color = Colors.pink;
-        break;
-      case TransactionType.utilityBill:
-        icon = Icons.receipt_long;
-        color = Colors.orange;
-        break;
-      case TransactionType.nagad:
-        icon = Icons.account_balance_wallet;
-        color = Colors.redAccent;
-        break;
-      case TransactionType.other:
-        icon = Icons.more_horiz;
-        color = Colors.grey;
-        break;
-    }
+    IconData icon = txn.type.icon;
+    Color color = txn.type.color;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
