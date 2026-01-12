@@ -137,6 +137,54 @@ class DatabaseHelper {
     return List<Transaction>.from(result.map((map) => Transaction.fromMap(map)));
   }
 
+  Future<List<Transaction>> getTransactions({
+    DateTime? startDate,
+    DateTime? endDate,
+    TransactionType? type,
+    TransactionDirection? direction,
+    int? limit,
+    int? offset,
+  }) async {
+    final db = await database;
+    
+    // Build where clause
+    List<String> whereClauses = [];
+    List<dynamic> whereArgs = [];
+
+    if (startDate != null) {
+      whereClauses.add('timestamp >= ?');
+      whereArgs.add(startDate.millisecondsSinceEpoch);
+    }
+    
+    if (endDate != null) {
+      whereClauses.add('timestamp <= ?');
+      whereArgs.add(endDate.millisecondsSinceEpoch);
+    }
+
+    if (type != null) {
+      whereClauses.add('type = ?');
+      whereArgs.add(type.name);
+    }
+    
+    if (direction != null) {
+      whereClauses.add('direction = ?');
+      whereArgs.add(direction.name);
+    }
+
+    final whereString = whereClauses.isEmpty ? null : whereClauses.join(' AND ');
+
+    final result = await db.query(
+      'transactions',
+      where: whereString,
+      whereArgs: whereArgs,
+      orderBy: 'timestamp DESC',
+      limit: limit,
+      offset: offset,
+    );
+    
+    return List<Transaction>.from(result.map((map) => Transaction.fromMap(map)));
+  }
+
   Future<int> updateTransaction(Transaction transaction) async {
     final db = await database;
     return await db.update(

@@ -14,61 +14,123 @@ class TransactionsScreen extends StatefulWidget {
 class _TransactionsScreenState extends State<TransactionsScreen> {
   final TransactionService _transactionService = TransactionService();
   Map<String, List<Transaction>> _groupedTransactions = {};
-  bool _isLoading = true;
+  List<Transaction> _allTransactions = [];
+  bool _isLoading = false;
+  bool _hasMore = true;
+  int _offset = 0;
+  static const int _limit = 20;
+  
+  DateTimeRange? _dateRange;
   TransactionType? _filterType;
   TransactionDirection? _filterDirection;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _loadTransactions();
+    // Default to current month
+    final now = DateTime.now();
+    _dateRange = DateTimeRange(
+      start: DateTime(now.year, now.month, 1),
+      end: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
+    );
+    _scrollController.addListener(_onScroll);
+    _loadTransactions(reset: true);
   }
 
-  Future<void> _loadTransactions() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.9 &&
+        !_isLoading &&
+        _hasMore) {
+      _loadTransactions();
+    }
+  }
+
+  Future<void> _selectDateRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDateRange: _dateRange,
+    );
+
+    if (picked != null && picked != _dateRange) {
+      setState(() {
+        _dateRange = DateTimeRange(
+            start: picked.start,
+            end: picked.end.add(const Duration(hours: 23, minutes: 59, seconds: 59))
+        );
+      });
+      _loadTransactions(reset: true);
+    }
+  }
+
+  Future<void> _loadTransactions({bool reset = false}) async {
+    if (_isLoading) return;
+    
+    setState(() {
+      _isLoading = true;
+      if (reset) {
+        _allTransactions = [];
+        _groupedTransactions = {};
+        _offset = 0;
+        _hasMore = true;
+      }
+    });
     
     try {
-      Map<String, List<Transaction>> grouped;
+      final transactions = await _transactionService.getTransactions(
+        startDate: _dateRange?.start,
+        endDate: _dateRange?.end,
+        type: _filterType,
+        direction: _filterDirection,
+        limit: _limit,
+        offset: _offset,
+      );
       
-      if (_filterType != null || _filterDirection != null) {
-        List<Transaction> transactions;
-        
-        if (_filterType != null) {
-          transactions = await _transactionService.getTransactionsByType(_filterType!);
-        } else {
-          final allGrouped = await _transactionService.getTransactionsGroupedByDate();
-          transactions = allGrouped.values.expand((list) => list).toList();
-        }
-        
-        // Apply direction filter
-        if (_filterDirection != null) {
-          transactions = transactions.where((txn) => txn.direction == _filterDirection).toList();
-        }
-        
-        grouped = {};
-        for (final txn in transactions) {
-          final dateKey = DateFormat('yyyy-MM-dd').format(txn.timestamp);
-          if (!grouped.containsKey(dateKey)) {
-            grouped[dateKey] = [];
-          }
-          grouped[dateKey]!.add(txn);
-        }
-      } else {
-        grouped = await _transactionService.getTransactionsGroupedByDate();
-      }
-      
-      setState(() {
-        _groupedTransactions = grouped;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() {
+           if (transactions.isEmpty) {
+             _hasMore = false;
+           } else {
+             _allTransactions.addAll(transactions);
+             _offset += transactions.length;
+             // Update grouping
+             _updateGrouping();
+             
+             if (transactions.length < _limit) {
+               _hasMore = false;
+             }
+           }
+           _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading transactions: $e')),
         );
       }
     }
+  }
+
+  void _updateGrouping() {
+    final grouped = <String, List<Transaction>>{};
+    for (final txn in _allTransactions) {
+      final dateKey = DateFormat('yyyy-MM-dd').format(txn.timestamp);
+      if (!grouped.containsKey(dateKey)) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey]!.add(txn);
+    }
+    _groupedTransactions = grouped;
   }
 
   @override
@@ -77,6 +139,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       appBar: AppBar(
         title: const Text('All Transactions'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.date_range),
+            onPressed: _selectDateRange,
+            tooltip: 'Select Date Range',
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.filter_list),
             tooltip: 'Filter',
@@ -94,9 +161,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   _filterType = null; // Reset type filter when changing direction
                 }
               });
-              _loadTransactions();
+              _loadTransactions(reset: true);
             },
             itemBuilder: (context) => [
+              // ... existing items ...
               const PopupMenuItem(
                 value: 'header_type',
                 enabled: false,
@@ -161,10 +229,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ],
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(30),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              _dateRange != null 
+                  ? '${DateFormat('MMM d').format(_dateRange!.start)} - ${DateFormat('MMM d').format(_dateRange!.end)}'
+                  : 'All Time',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ),
       ),
       body: RefreshIndicator(
-        onRefresh: _loadTransactions,
-        child: _isLoading
+        onRefresh: () => _loadTransactions(reset: true),
+        child: _isLoading && _allTransactions.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : _buildContent(),
       ),
@@ -197,9 +277,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final sortedKeys = _groupedTransactions.keys.toList()..sort((a, b) => b.compareTo(a));
 
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
-      itemCount: sortedKeys.length,
+      itemCount: sortedKeys.length + 1, // +1 for loading indicator
       itemBuilder: (context, index) {
+        if (index == sortedKeys.length) {
+          return _hasMore
+              ? const Center(child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: CircularProgressIndicator(),
+                ))
+              : const SizedBox(height: 50); // Bottom padding
+        }
+        
         final dateKey = sortedKeys[index];
         final transactions = _groupedTransactions[dateKey]!;
         final date = DateTime.parse(dateKey);

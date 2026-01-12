@@ -32,6 +32,24 @@ class TransactionService {
     return result;
   }
 
+  Future<List<Transaction>> getTransactions({
+    DateTime? startDate,
+    DateTime? endDate,
+    TransactionType? type,
+    TransactionDirection? direction,
+    int? limit,
+    int? offset,
+  }) async {
+    return _db.getTransactions(
+      startDate: startDate,
+      endDate: endDate,
+      type: type,
+      direction: direction,
+      limit: limit,
+      offset: offset,
+    );
+  }
+
   /// Get transactions grouped by date
   Future<Map<String, List<Transaction>>> getTransactionsGroupedByDate() async {
     final transactions = await _db.getAllTransactions();
