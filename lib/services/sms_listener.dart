@@ -2,6 +2,38 @@ import 'package:telephony/telephony.dart';
 import 'sms_parser.dart';
 import '../database/database_helper.dart';
 
+/// Background message handler for incoming SMS
+/// This must be a top-level function for it to work in background
+@pragma('vm:entry-point')
+Future<void> backgroundMessageHandler(SmsMessage message) async {
+  try {
+    final smsBody = message.body ?? '';
+    final sender = message.address ?? '';
+
+    if (smsBody.isEmpty) return;
+
+    // Initialize services
+    final parser = SmsParser();
+    final db = DatabaseHelper.instance;
+
+    // Try to parse the SMS
+    final transaction = await parser.parseSms(smsBody, sender);
+
+    if (transaction != null) {
+      // Save transaction to database
+      await db.createTransaction(transaction);
+      
+      // Update daily summary cache
+      final summary = await db.calculateDailySummary(DateTime.now());
+      await db.saveDailySummary(summary);
+
+      print('Background: Transaction detected and saved: ${transaction.type.name} - Tk ${transaction.amount}');
+    }
+  } catch (e) {
+    print('Background: Error processing SMS: $e');
+  }
+}
+
 /// Background SMS listener service
 class SmsListener {
   static final Telephony telephony = Telephony.instance;
@@ -18,9 +50,17 @@ class SmsListener {
         return false;
       }
 
-      // Set up background SMS handler
+      // Set up foreground SMS handler
       telephony.listenIncomingSms(
         onNewMessage: _onSmsReceived,
+        listenInBackground: false,
+      );
+
+      // Set up background SMS handler
+      // This enables SMS processing even when app is in background
+      telephony.listenIncomingSms(
+        onNewMessage: _onSmsReceived,
+        onBackgroundMessage: backgroundMessageHandler,
         listenInBackground: true,
       );
 
