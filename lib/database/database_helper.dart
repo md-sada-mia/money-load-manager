@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2, // Upgraded from version 1
+      version: 3, // Upgraded to remove daily_summaries table
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -59,26 +59,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // Daily summaries table
-    await db.execute('''
-      CREATE TABLE daily_summaries (
-        date TEXT PRIMARY KEY,
-        total_count INTEGER NOT NULL,
-        total_amount REAL NOT NULL,
-        incoming_count INTEGER NOT NULL DEFAULT 0,
-        incoming_amount REAL NOT NULL DEFAULT 0,
-        outgoing_count INTEGER NOT NULL DEFAULT 0,
-        outgoing_amount REAL NOT NULL DEFAULT 0,
-        flexiload_count INTEGER NOT NULL,
-        flexiload_amount REAL NOT NULL,
-        bkash_count INTEGER NOT NULL,
-        bkash_amount REAL NOT NULL,
-        utility_bill_count INTEGER NOT NULL,
-        utility_bill_amount REAL NOT NULL,
-        other_count INTEGER NOT NULL,
-        other_amount REAL NOT NULL
-      )
-    ''');
+    // Daily summaries table removed - summaries are now calculated on-the-fly from transactions
 
     // Create indexes for better query performance
     await db.execute('CREATE INDEX idx_transactions_timestamp ON transactions(timestamp)');
@@ -98,7 +79,7 @@ class DatabaseHelper {
         ALTER TABLE patterns ADD COLUMN direction TEXT NOT NULL DEFAULT 'incoming'
       ''');
 
-      // Add incoming/outgoing columns to daily_summaries table
+      // Add incoming/outgoing columns to daily_summaries table (will be dropped in v3)
       await db.execute('''
         ALTER TABLE daily_summaries ADD COLUMN incoming_count INTEGER NOT NULL DEFAULT 0
       ''');
@@ -114,6 +95,11 @@ class DatabaseHelper {
 
       // Create index for direction column
       await db.execute('CREATE INDEX idx_transactions_direction ON transactions(direction)');
+    }
+    
+    if (oldVersion < 3) {
+      // Drop daily_summaries table - we now calculate summaries on-the-fly from transactions
+      await db.execute('DROP TABLE IF EXISTS daily_summaries');
     }
   }
 
@@ -255,29 +241,12 @@ class DatabaseHelper {
 
 
   // Daily summary operations
-  Future<void> saveDailySummary(DailySummary summary) async {
-    final db = await database;
-    await db.insert(
-      'daily_summaries',
-      summary.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
+  // Note: Summaries are now calculated on-the-fly from transactions.
+  // The saveDailySummary() and getDailySummary() methods have been removed.
 
-  Future<DailySummary?> getDailySummary(DateTime date) async {
-    final db = await database;
-    final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    final result = await db.query(
-      'daily_summaries',
-      where: 'date = ?',
-      whereArgs: [dateStr],
-    );
-    if (result.isEmpty) return null;
-    return DailySummary.fromMap(result.first);
-  }
-
-  // Calculate daily summary from transactions
-  Future<DailySummary> calculateDailySummary(DateTime date) async {
+  /// Calculate daily summary from transactions in real-time
+  /// Returns a Map with aggregated transaction data
+  Future<Map<String, dynamic>> calculateDailySummary(DateTime date) async {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
     
@@ -319,23 +288,23 @@ class DatabaseHelper {
       }
     }
 
-    return DailySummary(
-      date: startOfDay,
-      totalCount: transactions.length,
-      totalAmount: flexiloadAmount + bkashAmount + utilityBillAmount + otherAmount,
-      incomingCount: incomingCount,
-      incomingAmount: incomingAmount,
-      outgoingCount: outgoingCount,
-      outgoingAmount: outgoingAmount,
-      flexiloadCount: flexiloadCount,
-      flexiloadAmount: flexiloadAmount,
-      bkashCount: bkashCount,
-      bkashAmount: bkashAmount,
-      utilityBillCount: utilityBillCount,
-      utilityBillAmount: utilityBillAmount,
-      otherCount: otherCount,
-      otherAmount: otherAmount,
-    );
+    return {
+      'date': startOfDay,
+      'totalCount': transactions.length,
+      'totalAmount': flexiloadAmount + bkashAmount + utilityBillAmount + otherAmount,
+      'incomingCount': incomingCount,
+      'incomingAmount': incomingAmount,
+      'outgoingCount': outgoingCount,
+      'outgoingAmount': outgoingAmount,
+      'flexiloadCount': flexiloadCount,
+      'flexiloadAmount': flexiloadAmount,
+      'bkashCount': bkashCount,
+      'bkashAmount': bkashAmount,
+      'utilityBillCount': utilityBillCount,
+      'utilityBillAmount': utilityBillAmount,
+      'otherCount': otherCount,
+      'otherAmount': otherAmount,
+    };
   }
 
   Future<void> close() async {
@@ -347,6 +316,6 @@ class DatabaseHelper {
     final db = await database;
     await db.delete('transactions');
     await db.delete('patterns');
-    await db.delete('daily_summaries');
+    // daily_summaries table has been removed
   }
 }

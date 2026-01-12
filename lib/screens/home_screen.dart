@@ -4,7 +4,6 @@ import '../models/models.dart';
 import '../services/transaction_service.dart';
 import 'transactions_screen.dart';
 import 'day_end_summary_screen.dart';
-import 'training_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,7 +15,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TransactionService _transactionService = TransactionService();
-  DailySummary? _todaySummary;
+  Map<String, dynamic>? _todaySummary;
   List<Transaction> _recentTransactions = [];
   bool _isLoading = true;
 
@@ -109,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Tk ${(_todaySummary?.totalAmount ?? 0).toStringAsFixed(2)}',
+              'Tk ${((_todaySummary?['totalAmount'] as num?) ?? 0).toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
                 fontWeight: FontWeight.bold,
@@ -117,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              '${_todaySummary?.totalCount ?? 0} transactions today',
+              '${(_todaySummary?['totalCount'] as int?) ?? 0} transactions today',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
               ),
@@ -138,8 +137,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: _buildDirectionCard(
                 'Incoming',
-                _todaySummary?.incomingCount ?? 0,
-                _todaySummary?.incomingAmount ?? 0,
+                (_todaySummary?['incomingCount'] as int?) ?? 0,
+                ((_todaySummary?['incomingAmount'] as num?) ?? 0).toDouble(),
                 Icons.arrow_downward,
                 Colors.green,
               ),
@@ -148,8 +147,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: _buildDirectionCard(
                 'Outgoing',
-                _todaySummary?.outgoingCount ?? 0,
-                _todaySummary?.outgoingAmount ?? 0,
+                (_todaySummary?['outgoingCount'] as int?) ?? 0,
+                ((_todaySummary?['outgoingAmount'] as num?) ?? 0).toDouble(),
                 Icons.arrow_upward,
                 Colors.red,
               ),
@@ -163,8 +162,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: _buildStatCard(
                 'Flexiload',
-                _todaySummary?.flexiloadCount ?? 0,
-                _todaySummary?.flexiloadAmount ?? 0,
+                (_todaySummary?['flexiloadCount'] as int?) ?? 0,
+                ((_todaySummary?['flexiloadAmount'] as num?) ?? 0).toDouble(),
                 Icons.phone_android,
                 Colors.blue,
               ),
@@ -173,8 +172,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: _buildStatCard(
                 'bKash',
-                _todaySummary?.bkashCount ?? 0,
-                _todaySummary?.bkashAmount ?? 0,
+                (_todaySummary?['bkashCount'] as int?) ?? 0,
+                ((_todaySummary?['bkashAmount'] as num?) ?? 0).toDouble(),
                 Icons.account_balance_wallet,
                 Colors.pink,
               ),
@@ -183,8 +182,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: _buildStatCard(
                 'Bills',
-                _todaySummary?.utilityBillCount ?? 0,
-                _todaySummary?.utilityBillAmount ?? 0,
+                (_todaySummary?['utilityBillCount'] as int?) ?? 0,
+                ((_todaySummary?['utilityBillAmount'] as num?) ?? 0).toDouble(),
                 Icons.receipt_long,
                 Colors.orange,
               ),

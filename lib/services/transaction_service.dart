@@ -49,49 +49,29 @@ class TransactionService {
   }
 
   /// Get summary statistics for today
-  Future<DailySummary> getTodaySummary() async {
+  Future<Map<String, dynamic>> getTodaySummary() async {
     return await getSummaryForDate(DateTime.now());
   }
 
   /// Get summary for a specific date
-  Future<DailySummary> getSummaryForDate(DateTime date) async {
-    // Try to get cached summary first
-    final cached = await _db.getDailySummary(date);
-    if (cached != null) return cached;
-
-    // Calculate and cache summary
-    final summary = await _db.calculateDailySummary(date);
-    await _db.saveDailySummary(summary);
-    return summary;
+  /// Summaries are calculated on-the-fly from transaction records
+  Future<Map<String, dynamic>> getSummaryForDate(DateTime date) async {
+    return await _db.calculateDailySummary(date);
   }
 
   /// Create a new transaction manually
   Future<int> createTransaction(Transaction transaction) async {
-    final id = await _db.createTransaction(transaction);
-    
-    // Update daily summary
-    final summary = await _db.calculateDailySummary(transaction.timestamp);
-    await _db.saveDailySummary(summary);
-    
-    return id;
+    return await _db.createTransaction(transaction);
   }
 
   /// Update an existing transaction
   Future<void> updateTransaction(Transaction transaction) async {
     await _db.updateTransaction(transaction);
-    
-    // Update daily summary
-    final summary = await _db.calculateDailySummary(transaction.timestamp);
-    await _db.saveDailySummary(summary);
   }
 
   /// Delete a transaction
   Future<void> deleteTransaction(Transaction transaction) async {
     await _db.deleteTransaction(transaction.id!);
-    
-    // Update daily summary
-    final summary = await _db.calculateDailySummary(transaction.timestamp);
-    await _db.saveDailySummary(summary);
   }
 
   /// Export transactions to CSV format
@@ -136,26 +116,26 @@ class TransactionService {
     buffer.writeln('Daily Summary - $dateStr');
     buffer.writeln('=' * 40);
     buffer.writeln();
-    buffer.writeln('Total Transactions: ${summary.totalCount}');
-    buffer.writeln('Total Amount: Tk ${summary.totalAmount.toStringAsFixed(2)}');
+    buffer.writeln('Total Transactions: ${(summary['totalCount'] as int?) ?? 0}');
+    buffer.writeln('Total Amount: Tk ${((summary['totalAmount'] as num?) ?? 0).toStringAsFixed(2)}');
     buffer.writeln();
     buffer.writeln('Breakdown:');
     buffer.writeln('-' * 40);
     buffer.writeln('Flexiload:');
-    buffer.writeln('  Count: ${summary.flexiloadCount}');
-    buffer.writeln('  Amount: Tk ${summary.flexiloadAmount.toStringAsFixed(2)}');
+    buffer.writeln('  Count: ${(summary['flexiloadCount'] as int?) ?? 0}');
+    buffer.writeln('  Amount: Tk ${((summary['flexiloadAmount'] as num?) ?? 0).toStringAsFixed(2)}');
     buffer.writeln();
     buffer.writeln('bKash/Mobile Money:');
-    buffer.writeln('  Count: ${summary.bkashCount}');
-    buffer.writeln('  Amount: Tk ${summary.bkashAmount.toStringAsFixed(2)}');
+    buffer.writeln('  Count: ${(summary['bkashCount'] as int?) ?? 0}');
+    buffer.writeln('  Amount: Tk ${((summary['bkashAmount'] as num?) ?? 0).toStringAsFixed(2)}');
     buffer.writeln();
     buffer.writeln('Utility Bills:');
-    buffer.writeln('  Count: ${summary.utilityBillCount}');
-    buffer.writeln('  Amount: Tk ${summary.utilityBillAmount.toStringAsFixed(2)}');
+    buffer.writeln('  Count: ${(summary['utilityBillCount'] as int?) ?? 0}');
+    buffer.writeln('  Amount: Tk ${((summary['utilityBillAmount'] as num?) ?? 0).toStringAsFixed(2)}');
     buffer.writeln();
     buffer.writeln('Other:');
-    buffer.writeln('  Count: ${summary.otherCount}');
-    buffer.writeln('  Amount: Tk ${summary.otherAmount.toStringAsFixed(2)}');
+    buffer.writeln('  Count: ${(summary['otherCount'] as int?) ?? 0}');
+    buffer.writeln('  Amount: Tk ${((summary['otherAmount'] as num?) ?? 0).toStringAsFixed(2)}');
 
     return buffer.toString();
   }

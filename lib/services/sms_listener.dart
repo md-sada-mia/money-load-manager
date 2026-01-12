@@ -22,10 +22,6 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
     if (transaction != null) {
       // Save transaction to database
       await db.createTransaction(transaction);
-      
-      // Update daily summary cache
-      final summary = await db.calculateDailySummary(DateTime.now());
-      await db.saveDailySummary(summary);
 
       print('Background: Transaction detected and saved: ${transaction.type.name} - Tk ${transaction.amount}');
     }
@@ -85,10 +81,6 @@ class SmsListener {
       if (transaction != null) {
         // Save transaction to database
         await _db.createTransaction(transaction);
-        
-        // Update daily summary cache
-        final summary = await _db.calculateDailySummary(DateTime.now());
-        await _db.saveDailySummary(summary);
 
         print('Transaction detected and saved: ${transaction.type.name} - Tk ${transaction.amount}');
       }
@@ -141,15 +133,6 @@ class SmsListener {
         }
       }
 
-      // Recalculate all daily summaries for imported period
-      for (int i = 0; i < days; i++) {
-        final date = DateTime.now().subtract(Duration(days: i));
-        final summary = await _db.calculateDailySummary(date);
-        if (summary.totalCount > 0) {
-          await _db.saveDailySummary(summary);
-        }
-      }
-
       return importCount;
     } catch (e) {
       print('Error importing historical SMS: $e');
@@ -196,12 +179,6 @@ class SmsListener {
           await _db.createTransaction(txnWithCorrectTime);
           importCount++;
         }
-      }
-
-      if (importCount > 0) {
-        // Recalculate daily summary for that date
-        final summary = await _db.calculateDailySummary(startOfDay);
-        await _db.saveDailySummary(summary);
       }
 
       return importCount;

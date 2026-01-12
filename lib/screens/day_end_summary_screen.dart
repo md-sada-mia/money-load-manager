@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../models/models.dart';
 import '../services/transaction_service.dart';
 import 'package:flutter/services.dart';
 
@@ -16,7 +15,7 @@ class DayEndSummaryScreen extends StatefulWidget {
 
 class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   final TransactionService _transactionService = TransactionService();
-  DailySummary? _summary;
+  Map<String, dynamic>? _summary;
   bool _isLoading = true;
   bool _isRescanning = false;
   late DateTime _selectedDate;
@@ -150,7 +149,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   }
 
   Widget _buildContent() {
-    if (_summary == null || _summary!.totalCount == 0) {
+    if (_summary == null || ((_summary!['totalCount'] as int?) ?? 0) == 0) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -215,7 +214,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Tk ${_summary!.totalAmount.toStringAsFixed(2)}',
+              'Tk ${((_summary!['totalAmount'] as num?) ?? 0).toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -223,7 +222,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              '${_summary!.totalCount} transactions',
+              '${(_summary!['totalCount'] as int?) ?? 0} transactions',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
               ),
@@ -235,7 +234,9 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   }
 
   Widget _buildDirectionCard() {
-    final netBalance = _summary!.incomingAmount - _summary!.outgoingAmount;
+    final incomingAmount = ((_summary!['incomingAmount'] as num?) ?? 0).toDouble();
+    final outgoingAmount = ((_summary!['outgoingAmount'] as num?) ?? 0).toDouble();
+    final netBalance = incomingAmount - outgoingAmount;
     final isPositive = netBalance >= 0;
 
     return Card(
@@ -266,7 +267,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       Text(
-                        '${_summary!.incomingCount} transactions',
+                        '${(_summary!['incomingCount'] as int?) ?? 0} transactions',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
                         ),
@@ -275,7 +276,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                   ),
                 ),
                 Text(
-                  'Tk ${_summary!.incomingAmount.toStringAsFixed(2)}',
+                  'Tk ${((_summary!['incomingAmount'] as num?) ?? 0).toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Colors.green,
@@ -300,7 +301,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       Text(
-                        '${_summary!.outgoingCount} transactions',
+                        '${(_summary!['outgoingCount'] as int?) ?? 0} transactions',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
                         ),
@@ -309,7 +310,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                   ),
                 ),
                 Text(
-                  'Tk ${_summary!.outgoingAmount.toStringAsFixed(2)}',
+                  'Tk ${((_summary!['outgoingAmount'] as num?) ?? 0).toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Colors.red,
@@ -354,14 +355,14 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
 
   Widget _buildChart() {
     final data = [
-      if (_summary!.flexiloadAmount > 0)
-        _ChartData('Flexiload', _summary!.flexiloadAmount, Colors.blue),
-      if (_summary!.bkashAmount > 0)
-        _ChartData('bKash', _summary!.bkashAmount, Colors.pink),
-      if (_summary!.utilityBillAmount > 0)
-        _ChartData('Bills', _summary!.utilityBillAmount, Colors.orange),
-      if (_summary!.otherAmount > 0)
-        _ChartData('Other', _summary!.otherAmount, Colors.grey),
+      if (((_summary!['flexiloadAmount'] as num?) ?? 0) > 0)
+        _ChartData('Flexiload', ((_summary!['flexiloadAmount'] as num?) ?? 0).toDouble(), Colors.blue),
+      if (((_summary!['bkashAmount'] as num?) ?? 0) > 0)
+        _ChartData('bKash', ((_summary!['bkashAmount'] as num?) ?? 0).toDouble(), Colors.pink),
+      if (((_summary!['utilityBillAmount'] as num?) ?? 0) > 0)
+        _ChartData('Bills', ((_summary!['utilityBillAmount'] as num?) ?? 0).toDouble(), Colors.orange),
+      if (((_summary!['otherAmount'] as num?) ?? 0) > 0)
+        _ChartData('Other', ((_summary!['otherAmount'] as num?) ?? 0).toDouble(), Colors.grey),
     ];
 
     if (data.isEmpty) return const SizedBox.shrink();
@@ -384,7 +385,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
-                  maxY: _summary!.totalAmount * 1.2,
+                  maxY: ((_summary!['totalAmount'] as num?) ?? 0).toDouble() * 1.2,
                   barTouchData: BarTouchData(enabled: false),
                   titlesData: FlTitlesData(
                     show: true,
@@ -453,33 +454,33 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             const SizedBox(height: 16),
             _buildBreakdownItem(
               'Flexiload',
-              _summary!.flexiloadCount,
-              _summary!.flexiloadAmount,
+              (_summary!['flexiloadCount'] as int?) ?? 0,
+              ((_summary!['flexiloadAmount'] as num?) ?? 0).toDouble(),
               Icons.phone_android,
               Colors.blue,
             ),
             const Divider(),
             _buildBreakdownItem(
               'bKash / Mobile Money',
-              _summary!.bkashCount,
-              _summary!.bkashAmount,
+              (_summary!['bkashCount'] as int?) ?? 0,
+              ((_summary!['bkashAmount'] as num?) ?? 0).toDouble(),
               Icons.account_balance_wallet,
               Colors.pink,
             ),
             const Divider(),
             _buildBreakdownItem(
               'Utility Bills',
-              _summary!.utilityBillCount,
-              _summary!.utilityBillAmount,
+              (_summary!['utilityBillCount'] as int?) ?? 0,
+              ((_summary!['utilityBillAmount'] as num?) ?? 0).toDouble(),
               Icons.receipt_long,
               Colors.orange,
             ),
-            if (_summary!.otherCount > 0) ...[
+            if (((_summary!['otherCount'] as int?) ?? 0) > 0) ...[
               const Divider(),
               _buildBreakdownItem(
                 'Other',
-                _summary!.otherCount,
-                _summary!.otherAmount,
+                (_summary!['otherCount'] as int?) ?? 0,
+                ((_summary!['otherAmount'] as num?) ?? 0).toDouble(),
                 Icons.more_horiz,
                 Colors.grey,
               ),
