@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../models/models.dart';
 import '../services/transaction_service.dart';
 import 'package:flutter/services.dart';
+import 'transaction_detail_screen.dart';
 
 class DayEndSummaryScreen extends StatefulWidget {
   final DateTime date;
@@ -17,6 +18,7 @@ class DayEndSummaryScreen extends StatefulWidget {
 class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   final TransactionService _transactionService = TransactionService();
   Map<String, dynamic>? _summary;
+  List<Transaction> _transactions = [];
   bool _isLoading = true;
   bool _isRescanning = false;
   late DateTime _selectedDate;
@@ -33,8 +35,22 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
     
     try {
       final summary = await _transactionService.getSummaryForDate(_selectedDate);
+      
+      // Load transaction list for the selected date
+      final startOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+      final endOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59);
+      
+      final transactions = await _transactionService.getTransactions(
+        startDate: startOfDay,
+        endDate: endOfDay,
+        // No pagination needed for a single day usually, but let's be safe if user has 1000s? 
+        // User asked for "transactions list", probably all of them.
+        limit: 1000, 
+      );
+      
       setState(() {
         _summary = summary;
+        _transactions = transactions;
         _isLoading = false;
       });
     } catch (e) {
@@ -182,6 +198,8 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
         _buildDirectionCard(),
         const SizedBox(height: 24),
         _buildChart(),
+        const SizedBox(height: 24),
+        _buildTransactionList(),
         const SizedBox(height: 24),
         _buildBreakdown(),
       ],
@@ -371,16 +389,40 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
 
     final data = [
       if (((flexiloadStats['amount'] as num?) ?? 0) > 0)
-        _ChartData('Flexiload', (flexiloadStats['amount'] as num).toDouble(), Colors.blue),
+        _ChartData(
+          'Flexiload', 
+          (flexiloadStats['incomingAmount'] as num? ?? 0).toDouble(),
+          (flexiloadStats['outgoingAmount'] as num? ?? 0).toDouble(),
+        ),
       if (((bkashStats['amount'] as num?) ?? 0) > 0)
-        _ChartData('bKash', (bkashStats['amount'] as num).toDouble(), Colors.pink),
+        _ChartData(
+          'bKash', 
+          (bkashStats['incomingAmount'] as num? ?? 0).toDouble(),
+          (bkashStats['outgoingAmount'] as num? ?? 0).toDouble(),
+        ),
       if (((billStats['amount'] as num?) ?? 0) > 0)
-        _ChartData('Bills', (billStats['amount'] as num).toDouble(), Colors.orange),
+        _ChartData(
+          'Bills', 
+          (billStats['incomingAmount'] as num? ?? 0).toDouble(),
+          (billStats['outgoingAmount'] as num? ?? 0).toDouble(),
+        ),
       if (((otherStats['amount'] as num?) ?? 0) > 0)
-        _ChartData('Other', (otherStats['amount'] as num).toDouble(), Colors.grey),
+        _ChartData(
+          'Other', 
+          (otherStats['incomingAmount'] as num? ?? 0).toDouble(),
+          (otherStats['outgoingAmount'] as num? ?? 0).toDouble(),
+        ),
     ];
 
     if (data.isEmpty) return const SizedBox.shrink();
+    
+    // Find max value for Y-axis scaling
+    double maxY = 0;
+    for (var d in data) {
+      if (d.incoming > maxY) maxY = d.incoming;
+      if (d.outgoing > maxY) maxY = d.outgoing;
+    }
+    maxY = maxY == 0 ? 100 : maxY * 1.2;
 
     return Card(
       child: Padding(
@@ -389,19 +431,31 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Distribution',
+              'Distribution (In & Out)',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 24),
             SizedBox(
-              height: 200,
+              height: 220, // Increased height for top titles
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
-                  maxY: ((_summary!['totalAmount'] as num?) ?? 0).toDouble() * 1.2,
-                  barTouchData: BarTouchData(enabled: false),
+                  maxY: maxY,
+                  barTouchData: BarTouchData(
+                    enabled: true,
+                    touchTooltipData: BarTouchTooltipData(
+                      tooltipBgColor: Colors.blueGrey,
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        final type = rodIndex == 0 ? 'In' : 'Out';
+                        return BarTooltipItem(
+                          '$type: ${rod.toY.toStringAsFixed(0)}',
+                          const TextStyle(color: Colors.white),
+                        );
+                      },
+                    ),
+                  ),
                   titlesData: FlTitlesData(
                     show: true,
                     bottomTitles: AxisTitles(
@@ -422,8 +476,21 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                     leftTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
                     ),
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 30,
+                        getTitlesWidget: (value, meta) {
+                          // We can't easily map Y value back to specific bar here without complex logic
+                          // So we rely on the BarChartGroupData logic or just hide it if too complex
+                          // Actually, FlChart renders titles based on Y-axis. 
+                          // TO SHOW VALUES ON TOP OF BARS, we need to use a different approach or 
+                          // rely on tooltips. 
+                          // However, user asked for "amount... explanation". 
+                          // Let's use Tooltips for precision and maybe valid axis labels on Left.
+                          return sideTitleWidgets(value, meta);
+                        },
+                      ),
                     ),
                     rightTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
@@ -434,12 +501,21 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                   barGroups: data.asMap().entries.map((entry) {
                     return BarChartGroupData(
                       x: entry.key,
+                      barsSpace: 4,
                       barRods: [
+                        // Incoming Bar
                         BarChartRodData(
-                          toY: entry.value.amount,
-                          color: entry.value.color,
-                          width: 40,
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                          toY: entry.value.incoming,
+                          color: Colors.green,
+                          width: 16,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+                        ),
+                        // Outgoing Bar
+                        BarChartRodData(
+                          toY: entry.value.outgoing,
+                          color: Colors.red,
+                          width: 16,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
                         ),
                       ],
                     );
@@ -447,9 +523,37 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildLegendItem('Incoming', Colors.green),
+                const SizedBox(width: 24),
+                _buildLegendItem('Outgoing', Colors.red),
+              ],
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget sideTitleWidgets(double value, TitleMeta meta) {
+    if (value == meta.min || value == meta.max) return const SizedBox.shrink();
+    return const SizedBox.shrink(); // Hide top axis titles, prefer tooltips/legend
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          color: color,
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
     );
   }
 
@@ -475,7 +579,8 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             _buildBreakdownItem(
               'Flexiload',
               (flexiloadStats['count'] as int),
-              (flexiloadStats['amount'] as num).toDouble(),
+              (flexiloadStats['incomingAmount'] as num? ?? 0).toDouble(),
+              (flexiloadStats['outgoingAmount'] as num? ?? 0).toDouble(),
               Icons.phone_android,
               Colors.blue,
             ),
@@ -483,7 +588,8 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             _buildBreakdownItem(
               'bKash / Mobile Money',
               (bkashStats['count'] as int),
-              (bkashStats['amount'] as num).toDouble(),
+              (bkashStats['incomingAmount'] as num? ?? 0).toDouble(),
+              (bkashStats['outgoingAmount'] as num? ?? 0).toDouble(),
               Icons.account_balance_wallet,
               Colors.pink,
             ),
@@ -491,7 +597,8 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             _buildBreakdownItem(
               'Utility Bills',
               (billStats['count'] as int),
-              (billStats['amount'] as num).toDouble(),
+              (billStats['incomingAmount'] as num? ?? 0).toDouble(),
+              (billStats['outgoingAmount'] as num? ?? 0).toDouble(),
               Icons.receipt_long,
               Colors.orange,
             ),
@@ -500,8 +607,8 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
               _buildBreakdownItem(
                 'Other',
                 (otherStats['count'] as int),
-                (otherStats['amount'] as num).toDouble(),
-
+                (otherStats['incomingAmount'] as num? ?? 0).toDouble(),
+                (otherStats['outgoingAmount'] as num? ?? 0).toDouble(),
                 Icons.more_horiz,
                 Colors.grey,
               ),
@@ -512,20 +619,29 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
     );
   }
 
-  Widget _buildBreakdownItem(String label, int count, double amount, IconData icon, Color color) {
+  Widget _buildBreakdownItem(String label, int count, double incoming, double outgoing, IconData icon, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(width: 16),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text(
                   '$count transactions',
@@ -536,23 +652,151 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
               ],
             ),
           ),
-          Text(
-            NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format(amount),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (incoming > 0)
+                Row(
+                  children: [
+                    Icon(Icons.arrow_downward, size: 12, color: Colors.green),
+                    const SizedBox(width: 4),
+                    Text(
+                      NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format(incoming),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              if (outgoing > 0)
+                Row(
+                  children: [
+                    Icon(Icons.arrow_upward, size: 12, color: Colors.red),
+                    const SizedBox(width: 4),
+                    Text(
+                      NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format(outgoing),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.red, // Explicit red for outgoing
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              if (incoming == 0 && outgoing == 0)
+                 Text(
+                  'Tk 0.00',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+            ],
           ),
         ],
       ),
     );
   }
+  
+  Widget _buildTransactionList() {
+    if (_transactions.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Transactions',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _transactions.length,
+          itemBuilder: (context, index) {
+            return _buildTransactionTile(_transactions[index]);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransactionTile(Transaction txn) {
+    IconData icon;
+    Color color;
+    
+    switch (txn.type) {
+      case TransactionType.flexiload:
+        icon = Icons.phone_android;
+        color = Colors.blue;
+        break;
+      case TransactionType.bkash:
+        icon = Icons.account_balance_wallet;
+        color = Colors.pink;
+        break;
+      case TransactionType.utilityBill:
+        icon = Icons.receipt_long;
+        color = Colors.orange;
+        break;
+      case TransactionType.other:
+        icon = Icons.more_horiz;
+        color = Colors.grey;
+        break;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withValues(alpha: 0.1),
+          child: Icon(icon, color: color),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              txn.direction == TransactionDirection.incoming
+                  ? Icons.arrow_downward
+                  : Icons.arrow_upward,
+              color: txn.direction == TransactionDirection.incoming
+                  ? Colors.green
+                  : Colors.red,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format(txn.amount),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        subtitle: Text(
+          '${txn.type.name} • ${DateFormat('h:mm a').format(txn.timestamp)}',
+        ),
+        trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TransactionDetailScreen(transaction: txn),
+            ),
+          ).then((deleted) {
+            if (deleted == true) {
+              _loadSummary(); // Refresh summary if transaction was deleted
+            }
+          });
+        },
+      ),
+    );
+  }
+
+
 }
 
 class _ChartData {
   final String label;
-  final double amount;
-  final Color color;
+  final double incoming;
+  final double outgoing;
 
-  _ChartData(this.label, this.amount, this.color);
+  _ChartData(this.label, this.incoming, this.outgoing);
 }
