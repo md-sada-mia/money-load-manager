@@ -1,14 +1,20 @@
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:async'; // For StreamSubscription
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../database/database_helper.dart';
 import '../models/models.dart';
-import '../services/transaction_service.dart';
 import '../services/sms_listener.dart'; // For SmsListener
 import 'transactions_screen.dart';
 import 'transaction_detail_screen.dart';
 import 'day_end_summary_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/transaction_icon.dart';
+import '../widgets/transaction_icon.dart';
+import '../widgets/dashboard_config_dialog.dart';
+import '../services/transaction_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,16 +25,69 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TransactionService _transactionService = TransactionService();
+  final DatabaseHelper _db = DatabaseHelper.instance;
   Map<String, dynamic>? _todaySummary;
   List<Transaction> _recentTransactions = [];
   bool _isLoading = true;
   StreamSubscription<Transaction>? _transactionSubscription;
+  
+  // Customization state
+  List<TransactionType> _orderedTypes = TransactionType.values.toList();
+  Set<TransactionType> _alwaysShow = {
+    TransactionType.flexiload,
+    TransactionType.bkash,
+    TransactionType.nagad,
+    TransactionType.utilityBill,
+  }; // Default important keys
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadCustomizationSettings(); // Load first
+    _loadData(); // This loads data
     _subscribeToTransactions();
+  }
+  
+  Future<void> _loadCustomizationSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Load Order
+    final orderStrings = prefs.getStringList('dashboard_card_order');
+    if (orderStrings != null) {
+      final loadedOrder = <TransactionType>[];
+      for (final str in orderStrings) {
+        try {
+          final type = TransactionType.values.firstWhere((e) => e.name == str);
+          loadedOrder.add(type);
+        } catch (_) {}
+      }
+      
+      // Add any missing types to the end (in case new types added in update)
+      for (final type in TransactionType.values) {
+        if (!loadedOrder.contains(type)) {
+          loadedOrder.add(type);
+        }
+      }
+      
+      setState(() {
+        _orderedTypes = loadedOrder;
+      });
+    }
+
+    // Load Always Show
+    final alwaysShowStrings = prefs.getStringList('dashboard_always_show');
+    if (alwaysShowStrings != null) {
+      final loadedSet = <TransactionType>{};
+      for (final str in alwaysShowStrings) {
+        try {
+          final type = TransactionType.values.firstWhere((e) => e.name == str);
+          loadedSet.add(type);
+        } catch (_) {}
+      }
+      setState(() {
+        _alwaysShow = loadedSet;
+      });
+    }
   }
 
   void _subscribeToTransactions() {
@@ -190,16 +249,28 @@ class _HomeScreenState extends State<HomeScreen> {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            children: TransactionType.values.map((type) {
+            children: _orderedTypes.map((type) {
+              final stats = _getTypeStats(type);
+              final count = stats['count'] as int;
+              
+              // Visibility Logic: 
+              // Show if in "Always Show" set OR has transactions today.
+              if (!_alwaysShow.contains(type) && count == 0) {
+                return const SizedBox.shrink();
+              }
+
               return Padding(
                 padding: const EdgeInsets.only(right: 12),
-                child: SizedBox(
-                   width: 110, // Fixed width for consistent look
-                   child: _buildDetailedStatCard(
-                    type.displayName,
-                    type,
-                    type.icon,
-                    type.color,
+                child: GestureDetector(
+                  onLongPress: _showCustomizationDialog,
+                  child: SizedBox(
+                     width: 110, // Fixed width for consistent look
+                     child: _buildDetailedStatCard(
+                      type.displayName,
+                      type,
+                      type.icon,
+                      type.color,
+                    ),
                   ),
                 ),
               );
@@ -504,5 +575,20 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
+  }
+
+  Future<void> _showCustomizationDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => DashboardConfigDialog(
+        currentOrder: _orderedTypes,
+        alwaysShow: _alwaysShow,
+      ),
+    );
+
+    if (result == true) {
+      await _loadCustomizationSettings(); // Reload settings if changed
+      setState(() {}); // Trigger rebuild
+    }
   }
 }
