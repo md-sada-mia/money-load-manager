@@ -15,6 +15,7 @@ import '../widgets/transaction_icon.dart';
 import '../widgets/transaction_icon.dart';
 import '../widgets/dashboard_config_dialog.dart';
 import '../services/transaction_service.dart';
+import '../widgets/draggable_support_button.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -155,11 +156,27 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _buildContent(),
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: _loadData,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      _buildTodayHeader(),
+                      const SizedBox(height: 20),
+                      _buildQuickStats(),
+                      const SizedBox(height: 24),
+                      _buildActionButtons(),
+                      const SizedBox(height: 24),
+                      _buildRecentTransactions(),
+                    ],
+                  ),
+          ),
+           const DraggableSupportButton(),
+        ],
       ),
     );
   }
