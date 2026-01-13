@@ -13,11 +13,13 @@ class _TransactionMetadata {
   final String displayName;
   final IconData icon;
   final Color color;
+  final String? assetPath;
 
   const _TransactionMetadata({
     required this.displayName,
     required this.icon,
     required this.color,
+    this.assetPath,
   });
 }
 
@@ -27,32 +29,38 @@ extension TransactionTypeExtension on TransactionType {
       displayName: 'Flexiload',
       icon: Icons.phone_android,
       color: Colors.blue,
+      assetPath: 'assets/icons/flexiload.png',
     ),
     TransactionType.bkash: _TransactionMetadata(
       displayName: 'bKash',
       icon: Icons.account_balance_wallet,
       color: Colors.pink,
+      assetPath: 'assets/icons/bkash.png',
     ),
     TransactionType.nagad: _TransactionMetadata(
       displayName: 'Nagad',
       icon: Icons.account_balance_wallet,
       color: Colors.redAccent,
+      assetPath: 'assets/icons/nagad.png',
     ),
     TransactionType.utilityBill: _TransactionMetadata(
       displayName: 'Utility Bill',
       icon: Icons.receipt_long,
       color: Colors.orange,
+      assetPath: 'assets/icons/utility_bill.png',
     ),
     TransactionType.other: _TransactionMetadata(
       displayName: 'Other',
       icon: Icons.more_horiz,
       color: Colors.grey,
+      assetPath: 'assets/icons/other.png',
     ),
   };
 
   String get displayName => _metadata[this]!.displayName;
   IconData get icon => _metadata[this]!.icon;
   Color get color => _metadata[this]!.color;
+  String? get assetPath => _metadata[this]!.assetPath;
 }
 
 /// Transaction direction (money flow)

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../services/transaction_service.dart';
 import 'transaction_detail_screen.dart';
+import '../widgets/transaction_icon.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -333,7 +334,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildTransactionTile(Transaction txn) {
-    IconData icon = txn.type.icon;
     Color color = txn.type.color;
 
     return Card(
@@ -341,7 +341,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: 0.1),
-          child: Icon(icon, color: color),
+          child: TransactionIcon(type: txn.type, color: color),
         ),
         title: Row(
           children: [

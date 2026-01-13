@@ -8,6 +8,7 @@ import 'transactions_screen.dart';
 import 'transaction_detail_screen.dart';
 import 'day_end_summary_screen.dart';
 import 'settings_screen.dart';
+import '../widgets/transaction_icon.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -279,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: color, size: 18),
+                TransactionIcon(type: type, size: 18, color: color),
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
@@ -466,7 +467,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTransactionTile(Transaction txn) {
-    IconData icon = txn.type.icon;
     Color color = txn.type.color;
 
     return Card(
@@ -474,7 +474,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: 0.1),
-          child: Icon(icon, color: color),
+          child: TransactionIcon(type: txn.type, color: color),
         ),
         title: Row(
           children: [

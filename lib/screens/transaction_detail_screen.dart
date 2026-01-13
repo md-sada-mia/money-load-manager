@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../services/transaction_service.dart';
+import '../widgets/transaction_icon.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
   final Transaction transaction;
@@ -34,7 +35,6 @@ class TransactionDetailScreen extends StatelessWidget {
   }
 
   Widget _buildAmountCard(BuildContext context) {
-    IconData icon = transaction.type.icon;
     Color color = transaction.type.color;
 
     return Card(
@@ -43,7 +43,7 @@ class TransactionDetailScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Icon(icon, size: 48, color: color),
+            TransactionIcon(type: transaction.type, size: 48, color: color),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
