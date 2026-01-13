@@ -119,8 +119,8 @@ class DefaultPatterns {
         fieldMappings: {'amount': '1'},
       ),
       SmsPattern(
-        name: 'Nagad Received',
-        regexPattern: r'Money\s+Received\.\s+Amount:\s*Tk\.?\s*([\d,]+(?:\.\d{2})?)\s+Sender:\s*(\d+)\s+Ref:\s*(.*?)\s+TxnID:\s*(\w+)\s+Balance:\s*Tk\.?\s*([\d,]+(?:\.\d{2})?)',
+        name: 'Nagad Money Received',
+        regexPattern: r'Money\s+Received\.\s+Amount:\s+Tk\s+([\d,]+(?:\.\d{2})?)\s+Sender:\s+(\d+)\s+Ref:\s+(.*?)\s+TxnID:\s+(\w+)\s+Balance:\s+Tk\s+([\d,]+(?:\.\d{2})?)\s+(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2})',
         transactionType: TransactionType.nagad,
         direction: TransactionDirection.incoming,
         fieldMappings: {
@@ -129,6 +129,7 @@ class DefaultPatterns {
           'reference': '3',
           'transactionId': '4',
           'balance': '5',
+          'timestamp': '6',
         },
       )
     ];
