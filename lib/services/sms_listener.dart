@@ -22,10 +22,16 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
     final transaction = await parser.parseSms(smsBody, sender);
 
     if (transaction != null) {
-      // Save transaction to database
-      await db.createTransaction(transaction);
-
-      print('Background: Transaction detected and saved: ${transaction.type.name} - Tk ${transaction.amount}');
+      // Check for duplicates using smart logic
+      final isDuplicate = await db.isDuplicateTransaction(transaction);
+      
+      if (!isDuplicate) {
+        // Save transaction to database
+        await db.createTransaction(transaction);
+        print('Background: Transaction detected and saved: ${transaction.type.name} - Tk ${transaction.amount}');
+      } else {
+        print('Background: Duplicate transaction ignored: ${transaction.type.name} - Tk ${transaction.amount}');
+      }
     }
   } catch (e) {
     print('Background: Error processing SMS: $e');
@@ -84,11 +90,18 @@ class SmsListener {
       final transaction = await _parser.parseSms(smsBody, sender);
 
       if (transaction != null) {
-        // Save transaction to database
-        await _db.createTransaction(transaction);
+        // Check for duplicates using smart logic
+        final isDuplicate = await _db.isDuplicateTransaction(transaction);
 
-        print('Transaction detected and saved: ${transaction.type.name} - Tk ${transaction.amount}');
-        _transactionStream.add(transaction);
+        if (!isDuplicate) {
+          // Save transaction to database
+          await _db.createTransaction(transaction);
+
+          print('Transaction detected and saved: ${transaction.type.name} - Tk ${transaction.amount}');
+          _transactionStream.add(transaction);
+        } else {
+           print('Duplicate transaction ignored: ${transaction.type.name} - Tk ${transaction.amount}');
+        }
       }
     } catch (e) {
       print('Error processing SMS: $e');
@@ -132,10 +145,22 @@ class SmsListener {
         if (transaction != null) {
           // Use the SMS timestamp instead of current time
           final actualTimestamp = DateTime.fromMillisecondsSinceEpoch(message.date ?? 0);
-          final txnWithCorrectTime = transaction.copyWith(timestamp: actualTimestamp);
           
-          await _db.createTransaction(txnWithCorrectTime);
-          importCount++;
+          // If the parsed transaction doesn't have an extracted timestamp, likely it should rely on the SMS metadata time 
+          // or we preserve the extracted one if available.
+          // The current `parseSms` sets `smsTimestamp` if found in text. 
+          // `timestamp` in model is creation time, we should likely backdate it to the SMS time for historical imports.
+          
+          final txnWithCorrectTime = transaction.copyWith(
+            timestamp: actualTimestamp,
+          );
+          
+          final isDuplicate = await _db.isDuplicateTransaction(txnWithCorrectTime);
+          
+          if (!isDuplicate) {
+             await _db.createTransaction(txnWithCorrectTime);
+             importCount++;
+          }
         }
       }
 
@@ -171,19 +196,20 @@ class SmsListener {
         
         if (smsBody.isEmpty) continue;
 
-        // Check for duplicates before parsing to save resources
-        // Note: We check raw SMS content as unique identifier
-        final exists = await _db.transactionExists(smsBody);
-        if (exists) continue;
-
+        // Parse first
         final transaction = await _parser.parseSms(smsBody, sender);
         
         if (transaction != null) {
           // Use the actual SMS timestamp
           final txnWithCorrectTime = transaction.copyWith(timestamp: msgDate);
           
-          await _db.createTransaction(txnWithCorrectTime);
-          importCount++;
+          // Check for duplicates using smart logic
+          final isDuplicate = await _db.isDuplicateTransaction(txnWithCorrectTime);
+          
+          if (!isDuplicate) {
+             await _db.createTransaction(txnWithCorrectTime);
+             importCount++;
+          }
         }
       }
 

@@ -225,6 +225,52 @@ class DatabaseHelper {
     return result.isNotEmpty;
   }
 
+  /// Checks if a transaction is a duplicate based on smart logic
+  /// Logic:
+  /// 1. If both txnId and smsTimestamp are missing/null -> Return false (No duplicate check)
+  /// 2. If txnId exists -> Check match on (txnId + type + direction + amount)
+  /// 3. If txnId missing but smsTimestamp exists -> Check match on (smsTimestamp + type + direction + amount)
+  Future<bool> isDuplicateTransaction(Transaction txn) async {
+    if (txn.txnId == null && txn.smsTimestamp == null) {
+      return false; // Skip duplicate checking
+    }
+
+    final db = await database;
+
+    if (txn.txnId != null) {
+      // Priority 1: Check by Transaction ID
+      final result = await db.query(
+        'transactions',
+        where: 'txn_id = ? AND type = ? AND direction = ? AND amount = ?',
+        whereArgs: [txn.txnId, txn.type.name, txn.direction.name, txn.amount],
+        limit: 1,
+      );
+      if (result.isNotEmpty) return true;
+    }
+
+    if (txn.smsTimestamp != null) {
+      // Priority 2: Check by SMS Timestamp (only if txnId didn't catch it, or wasn't present)
+      // Note: We don't skip this if txnId was present but not found, 
+      // because the user request said "Otherwise, use timestamp" implies fallback if ID doesn't exist?
+      // Re-reading request: "If at least one identifier is available: Prefer transactionId for duplicate detection WHEN IT EXISTS. Otherwise, use timestamp"
+      // This implies:
+      // If txnId is present, we ONLY check txnId.
+      // If txnId is NOT present, we check timestamp.
+      
+      if (txn.txnId == null) {
+         final result = await db.query(
+          'transactions',
+          where: 'sms_timestamp = ? AND type = ? AND direction = ? AND amount = ?',
+          whereArgs: [txn.smsTimestamp!.millisecondsSinceEpoch, txn.type.name, txn.direction.name, txn.amount],
+          limit: 1,
+        );
+        if (result.isNotEmpty) return true;
+      }
+    }
+
+    return false;
+  }
+
   // Pattern operations
   Future<int> createPattern(SmsPattern pattern) async {
     final db = await database;
