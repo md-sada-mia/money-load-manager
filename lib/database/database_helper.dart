@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3, // Upgraded to remove daily_summaries table
+      version: 4, // Upgraded to include extended transaction fields
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -41,7 +41,11 @@ class DatabaseHelper {
         timestamp INTEGER NOT NULL,
         raw_sms TEXT NOT NULL,
         pattern_id INTEGER,
-        notes TEXT
+        notes TEXT,
+        reference TEXT,
+        txn_id TEXT,
+        balance REAL,
+        sms_timestamp INTEGER
       )
     ''');
 
@@ -58,8 +62,6 @@ class DatabaseHelper {
         created_at INTEGER NOT NULL
       )
     ''');
-
-    // Daily summaries table removed - summaries are now calculated on-the-fly from transactions
 
     // Create indexes for better query performance
     await db.execute('CREATE INDEX idx_transactions_timestamp ON transactions(timestamp)');
@@ -100,6 +102,14 @@ class DatabaseHelper {
     if (oldVersion < 3) {
       // Drop daily_summaries table - we now calculate summaries on-the-fly from transactions
       await db.execute('DROP TABLE IF EXISTS daily_summaries');
+    }
+
+    if (oldVersion < 4) {
+      // Version 4: Add extended transaction fields (reference, txn_id, balance, sms_timestamp)
+      await db.execute('ALTER TABLE transactions ADD COLUMN reference TEXT');
+      await db.execute('ALTER TABLE transactions ADD COLUMN txn_id TEXT');
+      await db.execute('ALTER TABLE transactions ADD COLUMN balance REAL');
+      await db.execute('ALTER TABLE transactions ADD COLUMN sms_timestamp INTEGER');
     }
   }
 

@@ -40,6 +40,10 @@ class SmsParser {
       double? amount;
       String? sender;
       String? recipient;
+      String? reference;
+      String? txnId;
+      double? balance;
+      DateTime? smsTimestamp;
 
       pattern.fieldMappings.forEach((field, groupIndex) {
         final groupNum = int.tryParse(groupIndex);
@@ -58,6 +62,39 @@ class SmsParser {
           case 'recipient':
             recipient = value;
             break;
+          case 'reference':
+            reference = value;
+            break;
+          case 'transactionId':
+            txnId = value;
+            break;
+          case 'balance':
+            balance = double.tryParse(value.replaceAll(',', ''));
+            break;
+          case 'timestamp':
+            try {
+              // Expecting format dd/MM/yyyy HH:mm
+              // This is a basic parser for the format seen in default_patterns.dart
+              // Adjust pattern matching logic if format varies significantly
+              final parts = value.split(' ');
+              if (parts.length >= 2) {
+                final dateParts = parts[0].split('/');
+                final timeParts = parts[1].split(':');
+                if (dateParts.length == 3 && timeParts.length == 2) {
+                  smsTimestamp = DateTime(
+                    int.parse(dateParts[2]), // year
+                    int.parse(dateParts[1]), // month
+                    int.parse(dateParts[0]), // day
+                    int.parse(timeParts[0]), // hour
+                    int.parse(timeParts[1]), // minute
+                  );
+                }
+              }
+            } catch (e) {
+              // Ignore parsing errors for timestamp
+              print('Error parsing timestamp: $e');
+            }
+            break;
         }
       });
 
@@ -70,9 +107,13 @@ class SmsParser {
         amount: amount!,
         sender: sender,
         recipient: recipient,
-        timestamp: DateTime.now(),
+        timestamp: DateTime.now(), // Record creation time
         rawSms: smsBody,
         patternId: pattern.id,
+        reference: reference,
+        txnId: txnId,
+        balance: balance,
+        smsTimestamp: smsTimestamp, // Extracted timestamp from SMS
       );
     } catch (e) {
       // Invalid regex or parsing error, skip this pattern

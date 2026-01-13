@@ -109,10 +109,20 @@ class TransactionDetailScreen extends StatelessWidget {
             const SizedBox(height: 16),
             _buildDetailRow(context, 'Date', DateFormat('d MMMM yyyy').format(transaction.timestamp)),
             _buildDetailRow(context, 'Time', DateFormat('h:mm:ss a').format(transaction.timestamp)),
+            if (transaction.smsTimestamp != null)
+              _buildDetailRow(context, 'SMS Time', DateFormat('d MMM y HH:mm').format(transaction.smsTimestamp!)),
+            const Divider(height: 24),
+            if (transaction.txnId != null)
+               _buildDetailRow(context, 'TrxID', transaction.txnId!), // Label 'TrxID' as requested/common
+            if (transaction.reference != null)
+              _buildDetailRow(context, 'Ref', transaction.reference!),
             if (transaction.sender != null)
               _buildDetailRow(context, 'Sender', transaction.sender!),
             if (transaction.recipient != null)
               _buildDetailRow(context, 'Recipient', transaction.recipient!),
+            if (transaction.balance != null)
+              _buildDetailRow(context, 'Balance', 'Tk ${NumberFormat('#,##0.00', 'en_IN').format(transaction.balance)}'),
+             const Divider(height: 24),
             if (transaction.notes != null && transaction.notes!.isNotEmpty)
               _buildDetailRow(context, 'Notes', transaction.notes!),
           ],

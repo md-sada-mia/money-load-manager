@@ -81,6 +81,10 @@ class Transaction {
   final String rawSms;
   final int? patternId;
   final String? notes;
+  final String? reference;
+  final String? txnId;
+  final double? balance;
+  final DateTime? smsTimestamp;
 
   Transaction({
     this.id,
@@ -93,6 +97,10 @@ class Transaction {
     required this.rawSms,
     this.patternId,
     this.notes,
+    this.reference,
+    this.txnId,
+    this.balance,
+    this.smsTimestamp,
   });
 
   Map<String, dynamic> toMap() {
@@ -107,6 +115,10 @@ class Transaction {
       'raw_sms': rawSms,
       'pattern_id': patternId,
       'notes': notes,
+      'reference': reference,
+      'txn_id': txnId,
+      'balance': balance,
+      'sms_timestamp': smsTimestamp?.millisecondsSinceEpoch,
     };
   }
 
@@ -128,6 +140,12 @@ class Transaction {
       rawSms: map['raw_sms'] as String,
       patternId: map['pattern_id'] as int?,
       notes: map['notes'] as String?,
+      reference: map['reference'] as String?,
+      txnId: map['txn_id'] as String?,
+      balance: (map['balance'] as num?)?.toDouble(),
+      smsTimestamp: map['sms_timestamp'] != null 
+          ? DateTime.fromMillisecondsSinceEpoch(map['sms_timestamp'] as int)
+          : null,
     );
   }
 
@@ -142,6 +160,10 @@ class Transaction {
     String? rawSms,
     int? patternId,
     String? notes,
+    String? reference,
+    String? txnId,
+    double? balance,
+    DateTime? smsTimestamp,
   }) {
     return Transaction(
       id: id ?? this.id,
@@ -154,6 +176,10 @@ class Transaction {
       rawSms: rawSms ?? this.rawSms,
       patternId: patternId ?? this.patternId,
       notes: notes ?? this.notes,
+      reference: reference ?? this.reference,
+      txnId: txnId ?? this.txnId,
+      balance: balance ?? this.balance,
+      smsTimestamp: smsTimestamp ?? this.smsTimestamp,
     );
   }
 }
