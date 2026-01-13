@@ -1,4 +1,4 @@
-import 'package:telephony/telephony.dart';
+import 'package:another_telephony/telephony.dart';
 import 'sms_parser.dart';
 import '../database/database_helper.dart';
 
