@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'dart:async'; // For StreamSubscription
 import '../models/models.dart';
 import '../services/transaction_service.dart';
+import '../services/sms_listener.dart'; // For SmsListener
 import 'transactions_screen.dart';
 import 'transaction_detail_screen.dart';
 import 'day_end_summary_screen.dart';
@@ -19,11 +21,36 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _todaySummary;
   List<Transaction> _recentTransactions = [];
   bool _isLoading = true;
+  StreamSubscription<Transaction>? _transactionSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _subscribeToTransactions();
+  }
+
+  void _subscribeToTransactions() {
+    _transactionSubscription = SmsListener.transactionStream.listen((transaction) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('New transaction: ${transaction.type.name} - Tk ${transaction.amount}'),
+            action: SnackBarAction(
+              label: 'Refresh',
+              onPressed: _loadData,
+            ),
+          ),
+        );
+        _loadData();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _transactionSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {

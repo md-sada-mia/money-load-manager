@@ -1,4 +1,6 @@
 import 'package:another_telephony/telephony.dart';
+import 'dart:async';
+import '../models/models.dart';
 import 'sms_parser.dart';
 import '../database/database_helper.dart';
 
@@ -35,6 +37,9 @@ class SmsListener {
   static final Telephony telephony = Telephony.instance;
   static final SmsParser _parser = SmsParser();
   static final DatabaseHelper _db = DatabaseHelper.instance;
+
+  static final StreamController<Transaction> _transactionStream = StreamController<Transaction>.broadcast();
+  static Stream<Transaction> get transactionStream => _transactionStream.stream;
 
   /// Initialize SMS listener
   static Future<bool> initialize() async {
@@ -83,6 +88,7 @@ class SmsListener {
         await _db.createTransaction(transaction);
 
         print('Transaction detected and saved: ${transaction.type.name} - Tk ${transaction.amount}');
+        _transactionStream.add(transaction);
       }
     } catch (e) {
       print('Error processing SMS: $e');
