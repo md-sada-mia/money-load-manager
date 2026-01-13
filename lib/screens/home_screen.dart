@@ -34,15 +34,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _subscribeToTransactions() {
     _transactionSubscription = SmsListener.transactionStream.listen((transaction) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('New transaction: ${transaction.type.name} - Tk ${transaction.amount}'),
-            action: SnackBarAction(
-              label: 'Refresh',
-              onPressed: _loadData,
-            ),
-          ),
-        );
         _loadData();
       }
     });
