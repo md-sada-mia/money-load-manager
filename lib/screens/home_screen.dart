@@ -79,7 +79,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Money Load Manager'),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/logo.png',
+              height: 32,
+              width: 32,
+            ),
+            const SizedBox(width: 10),
+            const Text('Money Load Manager'),
+          ],
+        ),
         actions: [
 
           IconButton(
