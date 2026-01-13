@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'training_screen.dart';
 import 'sms_tester_screen.dart';
 import '../services/sms_listener.dart';
@@ -99,7 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Developer Options',
               [
                 ListTile(
-                  leading: const Icon(Icons.school),
+                  leading: const Icon(Icons.school, color: Colors.blue),
                   title: const Text('Pattern Training'),
                   subtitle: const Text('Train and export Regex patterns'),
                   onTap: () {
@@ -110,7 +111,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.science),
+                  leading: const Icon(Icons.science, color: Colors.orange),
                   title: const Text('SMS Tester'),
                   subtitle: const Text('Test patterns against raw text'),
                   onTap: () {
@@ -124,6 +125,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const Divider(),
           ],
+          _buildDeveloperInfo(context),
+          const Divider(),
           _buildSection(
             'About',
             [
@@ -277,5 +280,122 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+
+
+  Widget _buildDeveloperInfo(BuildContext context) {
+    return Column(
+      children: [
+        _buildSection(
+          'Developer Info',
+          [],
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Column(
+            children: [
+              const CircleAvatar(
+                radius: 50,
+                backgroundImage: AssetImage('assets/developer.png'),
+                backgroundColor: Colors.transparent,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Mehedi Hasan Mondol',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'AI IDE Specialist Windsurf / Antigravity &.. | Web App & Android Dev.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).textTheme.bodySmall?.color,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              _buildContactTile(
+                Icons.email, 
+                'mehedihasanmondol.online@gmail.com',
+                () => _launchUrl('mailto:mehedihasanmondol.online@gmail.com'),
+              ),
+              _buildContactTile(
+                Icons.phone, 
+                '01912336505',
+                () => _launchUrl('tel:01912336505'),
+              ),
+              _buildContactTile(
+                Icons.language, 
+                'websitelimited.com',
+                () => _launchUrl('https://websitelimited.com'),
+              ),
+              _buildContactTile(
+                Icons.facebook, 
+                'facebook.com/Md.Sada.Mia.bd',
+                () => _launchUrl('https://facebook.com/Md.Sada.Mia.bd'),
+              ),
+              _buildContactTile(
+                Icons.location_on, 
+                'South Bagoan, Bagoan, Mothurapur, Doulotpur, Kushtia, 7052',
+                null, // Address not clickable for now
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContactTile(IconData icon, String text, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: onTap != null ? Colors.blue : null, // Visual cue for clickable
+                  decoration: onTap != null ? TextDecoration.underline : null,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    try {
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not launch $urlString')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
   }
 }
