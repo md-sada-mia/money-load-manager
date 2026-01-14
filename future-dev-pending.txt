@@ -1,0 +1,6 @@
+use this package: https://pub.dev/packages/notification_listener_service. 
+
+i want parse phone any kind of notification and check this matched with patterrns. but dont need conflict with telephony machanism. whatever you use please ensure this plugin/package exist or valid.
+
+whatever you use package please read the official docs and update i dont need any error. 
+
