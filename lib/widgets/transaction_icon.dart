@@ -1,60 +1,39 @@
 import 'package:flutter/material.dart';
-import '../models/models.dart';
+import '../utils/logo_helper.dart';
 
 class TransactionIcon extends StatelessWidget {
-  final TransactionType type;
+  final String type;
   final double size;
-  final Color? color;
-  final bool useContainer;
-  final double containerSize;
+  final Color? color; // Optional override
 
   const TransactionIcon({
     super.key,
     required this.type,
-    this.size = 24.0,
+    this.size = 24,
     this.color,
-    this.useContainer = false,
-    this.containerSize = 40.0,
   });
 
   @override
   Widget build(BuildContext context) {
-    Widget iconWidget;
-    
-    if (type.assetPath != null) {
-      iconWidget = Image.asset(
-        type.assetPath!,
+    // For now, we prefer asset images from LogoHelper
+    final assetPath = LogoHelper.getLogoPath(type);
+    final fallbackColor = color ?? LogoHelper.getColor(type);
+
+    if (assetPath != null) {
+      return Image.asset(
+        assetPath,
         width: size,
         height: size,
         errorBuilder: (context, error, stackTrace) {
-          // Fallback to Icon if asset fails to load
-          return Icon(
-            type.icon,
-            color: color ?? type.color,
-            size: size,
-          );
+           return Icon(Icons.receipt, size: size, color: fallbackColor);
         },
       );
     } else {
-      iconWidget = Icon(
-        type.icon,
-        color: color ?? type.color,
-        size: size,
+      return Icon(
+        Icons.category, // Default icon
+        size: size, 
+        color: fallbackColor
       );
     }
-
-    if (useContainer) {
-      return Container(
-        width: containerSize,
-        height: containerSize,
-        decoration: BoxDecoration(
-          color: (color ?? type.color).withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Center(child: iconWidget),
-      );
-    }
-
-    return iconWidget;
   }
 }

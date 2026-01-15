@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4, // Upgraded to include extended transaction fields
+      version: 5, // Upgraded to support nullable transaction_type
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -55,7 +55,7 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         regex_pattern TEXT NOT NULL,
-        transaction_type TEXT NOT NULL,
+        transaction_type TEXT, -- Nullable (Dynamic)
         direction TEXT NOT NULL DEFAULT 'incoming',
         field_mappings TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1,
@@ -111,12 +111,59 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE transactions ADD COLUMN balance REAL');
       await db.execute('ALTER TABLE transactions ADD COLUMN sms_timestamp INTEGER');
     }
+
+    if (oldVersion < 5) {
+      // Version 5: Make transaction_type nullable in patterns table
+      // SQLite doesn't support altering column constraints directly, so we prefer to recreate the table
+      // Transaction wrapped by default with sqflite usually, but explicit transaction is safer for schema change
+      await db.transaction((txn) async {
+        // 1. Rename old table
+        await txn.execute('ALTER TABLE patterns RENAME TO patterns_old');
+
+        // 2. Create new table with nullable transaction_type
+        await txn.execute('''
+          CREATE TABLE patterns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            regex_pattern TEXT NOT NULL,
+            transaction_type TEXT, -- Now Nullable
+            direction TEXT NOT NULL DEFAULT 'incoming',
+            field_mappings TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL
+          )
+        ''');
+
+        // 3. Copy data
+        // Note: transaction_type might be mismatch if we strictly select it, but we are just relaxing constraint.
+        // We copy columns explicitly.
+        await txn.execute('''
+          INSERT INTO patterns (id, name, regex_pattern, transaction_type, direction, field_mappings, is_active, created_at)
+          SELECT id, name, regex_pattern, transaction_type, direction, field_mappings, is_active, created_at
+          FROM patterns_old
+        ''');
+
+        // 4. Drop old table
+        await txn.execute('DROP TABLE patterns_old');
+      });
+    }
   }
 
   // Transaction operations
   Future<int> createTransaction(Transaction transaction) async {
     final db = await database;
     return await db.insert('transactions', transaction.toMap());
+  }
+
+  Future<void> batchInsertTransactions(List<Transaction> transactions) async {
+    final db = await database;
+    final batch = db.batch();
+    
+    for (var txn in transactions) {
+      batch.insert('transactions', txn.toMap());
+    }
+    
+    await batch.commit(noResult: true);
   }
 
   Future<List<Transaction>> getAllTransactions() async {
@@ -136,12 +183,13 @@ class DatabaseHelper {
     return List<Transaction>.from(result.map((map) => Transaction.fromMap(map)));
   }
 
-  Future<List<Transaction>> getTransactionsByType(TransactionType type) async {
+  // Type is now String
+  Future<List<Transaction>> getTransactionsByType(String type) async {
     final db = await database;
     final result = await db.query(
       'transactions',
       where: 'type = ?',
-      whereArgs: [type.name],
+      whereArgs: [type],
       orderBy: 'timestamp DESC',
     );
     return List<Transaction>.from(result.map((map) => Transaction.fromMap(map)));
@@ -150,7 +198,7 @@ class DatabaseHelper {
   Future<List<Transaction>> getTransactions({
     DateTime? startDate,
     DateTime? endDate,
-    TransactionType? type,
+    String? type,
     TransactionDirection? direction,
     int? limit,
     int? offset,
@@ -173,7 +221,7 @@ class DatabaseHelper {
 
     if (type != null) {
       whereClauses.add('type = ?');
-      whereArgs.add(type.name);
+      whereArgs.add(type);
     }
     
     if (direction != null) {
@@ -226,10 +274,6 @@ class DatabaseHelper {
   }
 
   /// Checks if a transaction is a duplicate based on smart logic
-  /// Logic:
-  /// 1. If both txnId and smsTimestamp are missing/null -> Return false (No duplicate check)
-  /// 2. If txnId exists -> Check match on (txnId + type + direction + amount)
-  /// 3. If txnId missing but smsTimestamp exists -> Check match on (smsTimestamp + type + direction + amount)
   Future<bool> isDuplicateTransaction(Transaction txn) async {
     if (txn.txnId == null && txn.smsTimestamp == null) {
       return false; // Skip duplicate checking
@@ -242,26 +286,18 @@ class DatabaseHelper {
       final result = await db.query(
         'transactions',
         where: 'txn_id = ? AND type = ? AND direction = ? AND amount = ?',
-        whereArgs: [txn.txnId, txn.type.name, txn.direction.name, txn.amount],
+        whereArgs: [txn.txnId, txn.type, txn.direction.name, txn.amount],
         limit: 1,
       );
       if (result.isNotEmpty) return true;
     }
 
     if (txn.smsTimestamp != null) {
-      // Priority 2: Check by SMS Timestamp (only if txnId didn't catch it, or wasn't present)
-      // Note: We don't skip this if txnId was present but not found, 
-      // because the user request said "Otherwise, use timestamp" implies fallback if ID doesn't exist?
-      // Re-reading request: "If at least one identifier is available: Prefer transactionId for duplicate detection WHEN IT EXISTS. Otherwise, use timestamp"
-      // This implies:
-      // If txnId is present, we ONLY check txnId.
-      // If txnId is NOT present, we check timestamp.
-      
       if (txn.txnId == null) {
          final result = await db.query(
           'transactions',
           where: 'sms_timestamp = ? AND type = ? AND direction = ? AND amount = ?',
-          whereArgs: [txn.smsTimestamp!.millisecondsSinceEpoch, txn.type.name, txn.direction.name, txn.amount],
+          whereArgs: [txn.smsTimestamp!.millisecondsSinceEpoch, txn.type, txn.direction.name, txn.amount],
           limit: 1,
         );
         if (result.isNotEmpty) return true;
@@ -343,11 +379,6 @@ class DatabaseHelper {
     return updateCount;
   }
 
-
-  // Daily summary operations
-  // Note: Summaries are now calculated on-the-fly from transactions.
-  // The saveDailySummary() and getDailySummary() methods have been removed.
-
   /// Calculate daily summary from transactions in real-time
   /// Returns a Map with aggregated transaction data
   Future<Map<String, dynamic>> calculateDailySummary(DateTime date) async {
@@ -360,15 +391,8 @@ class DatabaseHelper {
     double incomingAmount = 0, outgoingAmount = 0;
     
     // Initialize breakdown stats for each type
-    final Map<TransactionType, Map<String, dynamic>> typeStats = {};
-    for (final type in TransactionType.values) {
-      typeStats[type] = {
-        'count': 0,
-        'amount': 0.0,
-        'incomingAmount': 0.0,
-        'outgoingAmount': 0.0,
-      };
-    }
+    // Type is now dynamic String, so we build it eagerly
+    final Map<String, Map<String, dynamic>> typeStats = {};
 
     for (var txn in transactions) {
       // Track global direction
@@ -380,8 +404,22 @@ class DatabaseHelper {
         outgoingAmount += txn.amount;
       }
 
-      // Track by type
-      final stats = typeStats[txn.type]!;
+      // Track by type (String) which is Sender Name mostly
+      // Normalize type name maybe? "bKash" vs "Bkash". 
+      // Let's assume it's stored somewhat consistently or we display as is.
+      // Better to use normalized keys if we can.
+      final typeKey = txn.type; 
+      
+      if (!typeStats.containsKey(typeKey)) {
+        typeStats[typeKey] = {
+          'count': 0,
+          'amount': 0.0,
+          'incomingAmount': 0.0,
+          'outgoingAmount': 0.0,
+        };
+      }
+
+      final stats = typeStats[typeKey]!;
       stats['count'] = (stats['count'] as int) + 1;
       stats['amount'] = (stats['amount'] as double) + txn.amount;
       
@@ -392,27 +430,15 @@ class DatabaseHelper {
       }
     }
 
-    // Convert keys to string for easier JSON/Map usage if needed, 
-    // but typically we can use the Enum as key in Dart maps.
-    // To match previous string-based approach for UI safety (dynamic map),
-    // we will store the type breakdown using the enum name string as key 
-    // OR just keep using the enum if we update the UI to use it.
-    // Let's use the enum name string for consistency with "generic map" concept.
-    
-    final Map<String, dynamic> typeBreakdown = {};
-    typeStats.forEach((key, value) {
-      typeBreakdown[key.name] = value;
-    });
-
     return {
       'date': startOfDay,
       'totalCount': transactions.length,
-      'totalAmount': incomingAmount + outgoingAmount, // Or sum of all types
+      'totalAmount': incomingAmount + outgoingAmount,
       'incomingCount': incomingCount,
       'incomingAmount': incomingAmount,
       'outgoingCount': outgoingCount,
       'outgoingAmount': outgoingAmount,
-      'typeBreakdown': typeBreakdown,
+      'typeBreakdown': typeStats,
     };
   }
 
@@ -425,6 +451,5 @@ class DatabaseHelper {
     final db = await database;
     await db.delete('transactions');
     await db.delete('patterns');
-    // daily_summaries table has been removed
   }
 }

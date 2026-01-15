@@ -19,7 +19,7 @@ class SmsParser {
     final allPatterns = [...defaultPatterns, ...customPatterns];
 
     for (final pattern in allPatterns) {
-      final match = _tryMatchPattern(smsBody, pattern);
+      final match = _tryMatchPattern(smsBody, pattern, sender);
       if (match != null) {
         return match;
       }
@@ -29,7 +29,7 @@ class SmsParser {
   }
 
   /// Try to match SMS against a specific pattern
-  Transaction? _tryMatchPattern(String smsBody, SmsPattern pattern) {
+  Transaction? _tryMatchPattern(String smsBody, SmsPattern pattern, String smsSender) {
     try {
       final regex = RegExp(pattern.regexPattern, caseSensitive: false);
       final match = regex.firstMatch(smsBody);
@@ -38,7 +38,7 @@ class SmsParser {
 
       // Extract fields based on mappings
       double? amount;
-      String? sender;
+      String? extractedSender; // Renamed from sender to avoid confusion
       String? recipient;
       String? reference;
       String? txnId;
@@ -57,7 +57,7 @@ class SmsParser {
             amount = double.tryParse(value.replaceAll(',', ''));
             break;
           case 'sender':
-            sender = value;
+            extractedSender = value;
             break;
           case 'recipient':
             recipient = value;
@@ -101,11 +101,43 @@ class SmsParser {
       // Amount is required for a valid transaction
       if (amount == null || amount! <= 0) return null;
 
+      // Determine Type:
+      // 1. If pattern has a specific type override, use it.
+      // 2. Otherwise try to infer from the SMS SENDER Address (not extracted body sender).
+      // 3. Fallback to "Unknown"
+      String finalType = pattern.transactionType ?? 'Unknown';
+      
+      // If pattern type is not set, try to infer from sender
+      if (pattern.transactionType == null) {
+        // Use the SMS SENDER ADDRESS for inference
+        // This is usually more reliable for type detection (e.g. "bKash", "GP INFO")
+        final s = smsSender.toLowerCase();
+        
+        if (s.contains('bkash')) finalType = 'bKash';
+        else if (s.contains('nagad')) finalType = 'Nagad';
+        else if (s.contains('rocket')) finalType = 'Rocket';
+        else if (s.contains('upay')) finalType = 'Upay';
+        else if (s.contains('desco')) finalType = 'DESCO';
+        else if (s.contains('dpdc')) finalType = 'DPDC';
+        else if (s.contains('wasa')) finalType = 'WASA';
+        else if (s.contains('titas')) finalType = 'Titas Gas';
+        else if (s.contains('bpdb')) finalType = 'BPDB';
+        // Telcos
+        else if (s.contains('gp') || s.contains('grameen')) finalType = 'Grameenphone';
+        else if (s.contains('banglalink') || s.contains('bl')) finalType = 'Banglalink';
+        else if (s.contains('robi')) finalType = 'Robi';
+        else if (s.contains('airtel')) finalType = 'Airtel';
+        else if (s.contains('teletalk')) finalType = 'Teletalk';
+        // If extracted sender from body exists, maybe that's a clue? 
+        // But usually body contains the person who sent money, not the service type.
+        else if (smsSender.isNotEmpty) finalType = smsSender; // Fallback to SMS Sender ID
+      }
+
       return Transaction(
-        type: pattern.transactionType,
+        type: finalType,
         direction: pattern.direction,
         amount: amount!,
-        sender: sender,
+        sender: extractedSender,
         recipient: recipient,
         timestamp: DateTime.now(), // Record creation time
         rawSms: smsBody,

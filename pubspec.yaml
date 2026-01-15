@@ -42,6 +42,9 @@ dependencies:
   # SMS Reading
   another_telephony: ^0.4.1
   
+  # Contacts
+  flutter_contacts: ^1.1.9+1
+  
   # Permissions
   permission_handler: ^11.0.1
   

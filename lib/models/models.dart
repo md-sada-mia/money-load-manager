@@ -1,68 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Transaction types supported by the app
-enum TransactionType {
-  flexiload,
-  bkash,
-  utilityBill,
-  nagad,
-  other
-}
-
-class _TransactionMetadata {
-  final String displayName;
-  final IconData icon;
-  final Color color;
-  final String? assetPath;
-
-  const _TransactionMetadata({
-    required this.displayName,
-    required this.icon,
-    required this.color,
-    this.assetPath,
-  });
-}
-
-extension TransactionTypeExtension on TransactionType {
-  static const Map<TransactionType, _TransactionMetadata> _metadata = {
-    TransactionType.flexiload: _TransactionMetadata(
-      displayName: 'Flexiload',
-      icon: Icons.phone_android,
-      color: Colors.blue,
-      assetPath: 'assets/icons/flexiload.png',
-    ),
-    TransactionType.bkash: _TransactionMetadata(
-      displayName: 'bKash',
-      icon: Icons.account_balance_wallet,
-      color: Colors.pink,
-      assetPath: 'assets/icons/bkash.png',
-    ),
-    TransactionType.nagad: _TransactionMetadata(
-      displayName: 'Nagad',
-      icon: Icons.account_balance_wallet,
-      color: Colors.redAccent,
-      assetPath: 'assets/icons/nagad.png',
-    ),
-    TransactionType.utilityBill: _TransactionMetadata(
-      displayName: 'Utility Bill',
-      icon: Icons.receipt_long,
-      color: Colors.orange,
-      assetPath: 'assets/icons/utility_bill.png',
-    ),
-    TransactionType.other: _TransactionMetadata(
-      displayName: 'Other',
-      icon: Icons.more_horiz,
-      color: Colors.grey,
-      assetPath: 'assets/icons/other.png',
-    ),
-  };
-
-  String get displayName => _metadata[this]!.displayName;
-  IconData get icon => _metadata[this]!.icon;
-  Color get color => _metadata[this]!.color;
-  String? get assetPath => _metadata[this]!.assetPath;
-}
-
 /// Transaction direction (money flow)
 enum TransactionDirection {
   incoming,  // Money received
@@ -72,7 +9,7 @@ enum TransactionDirection {
 /// Represents a financial transaction parsed from SMS
 class Transaction {
   final int? id;
-  final TransactionType type;
+  final String type; // Now a String (Sender Name or inferred type)
   final TransactionDirection direction;
   final double amount;
   final String? sender;
@@ -106,7 +43,7 @@ class Transaction {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'type': type.name,
+      'type': type,
       'direction': direction.name,
       'amount': amount,
       'sender': sender,
@@ -125,10 +62,7 @@ class Transaction {
   factory Transaction.fromMap(Map<String, dynamic> map) {
     return Transaction(
       id: map['id'] as int?,
-      type: TransactionType.values.firstWhere(
-        (e) => e.name == map['type'],
-        orElse: () => TransactionType.other,
-      ),
+      type: map['type'] as String? ?? 'Unknown',
       direction: TransactionDirection.values.firstWhere(
         (e) => e.name == map['direction'],
         orElse: () => TransactionDirection.incoming, // Default for old data
@@ -151,7 +85,7 @@ class Transaction {
 
   Transaction copyWith({
     int? id,
-    TransactionType? type,
+    String? type,
     TransactionDirection? direction,
     double? amount,
     String? sender,
@@ -189,7 +123,7 @@ class SmsPattern {
   final int? id;
   final String name;
   final String regexPattern;
-  final TransactionType transactionType;
+  final String? transactionType; // Now nullable String (Sender Name or inferred type)
   final TransactionDirection direction;
   final Map<String, String> fieldMappings; // e.g., {"amount": "group1", "sender": "group2"}
   final bool isActive;
@@ -199,7 +133,7 @@ class SmsPattern {
     this.id,
     required this.name,
     required this.regexPattern,
-    required this.transactionType,
+    this.transactionType, // Optional
     required this.direction,
     required this.fieldMappings,
     this.isActive = true,
@@ -211,7 +145,7 @@ class SmsPattern {
       'id': id,
       'name': name,
       'regex_pattern': regexPattern,
-      'transaction_type': transactionType.name,
+      'transaction_type': transactionType,
       'direction': direction.name,
       'field_mappings': _encodeFieldMappings(fieldMappings),
       'is_active': isActive ? 1 : 0,
@@ -224,10 +158,7 @@ class SmsPattern {
       id: map['id'] as int?,
       name: map['name'] as String,
       regexPattern: map['regex_pattern'] as String,
-      transactionType: TransactionType.values.firstWhere(
-        (e) => e.name == map['transaction_type'],
-        orElse: () => TransactionType.other,
-      ),
+      transactionType: map['transaction_type'] as String?,
       direction: TransactionDirection.values.firstWhere(
         (e) => e.name == map['direction'],
         orElse: () => TransactionDirection.incoming, // Default for old data
@@ -256,7 +187,7 @@ class SmsPattern {
     int? id,
     String? name,
     String? regexPattern,
-    TransactionType? transactionType,
+    String? transactionType,
     TransactionDirection? direction,
     Map<String, String>? fieldMappings,
     bool? isActive,
@@ -274,5 +205,4 @@ class SmsPattern {
     );
   }
 }
-
 

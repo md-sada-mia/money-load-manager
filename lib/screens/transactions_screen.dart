@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../services/transaction_service.dart';
 import 'transaction_detail_screen.dart';
 import '../widgets/transaction_icon.dart';
+import '../utils/logo_helper.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -22,7 +23,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   static const int _limit = 20;
   
   DateTimeRange? _dateRange;
-  TransactionType? _filterType;
+  String? _filterType; // String
   TransactionDirection? _filterDirection;
   final ScrollController _scrollController = ScrollController();
 
@@ -150,39 +151,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             tooltip: 'Filter',
             onSelected: (value) {
               setState(() {
-                if (value.startsWith('type_')) {
-                  _filterType = value == 'type_all' 
-                      ? null 
-                      : TransactionType.values.firstWhere((t) => 'type_${t.name}' == value);
-                  _filterDirection = null; // Reset direction filter when changing type
-                } else if (value.startsWith('dir_')) {
+                if (value.startsWith('dir_')) {
                   _filterDirection = value == 'dir_all'
                       ? null
                       : TransactionDirection.values.firstWhere((d) => 'dir_${d.name}' == value);
-                  _filterType = null; // Reset type filter when changing direction
+                } else if (value == 'type_all') {
+                  _filterType = null;
                 }
+                // Removed specific type filter for now as list is dynamic. 
+                // Could query DB for distinct types later.
               });
               _loadTransactions(reset: true);
             },
             itemBuilder: (context) => [
-              // ... existing items ...
-              const PopupMenuItem(
-                value: 'header_type',
-                enabled: false,
-                child: Text(
-                  'Filter by Type',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'type_all',
-                child: Text('All Types'),
-              ),
-              ...TransactionType.values.map((type) => PopupMenuItem(
-                value: 'type_${type.name}',
-                child: Text(type.displayName),
-              )),
-              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'header_direction',
                 enabled: false,
@@ -334,14 +315,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildTransactionTile(Transaction txn) {
-    Color color = txn.type.color;
+    Color color = LogoHelper.getColor(txn.type);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: 0.1),
-          child: TransactionIcon(type: txn.type, color: color),
+          child: TransactionIcon(type: txn.type),
         ),
         title: Row(
           children: [
@@ -362,7 +343,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ],
         ),
         subtitle: Text(
-          '${txn.type.name} • ${DateFormat('h:mm a').format(txn.timestamp)}',
+          '${txn.type} • ${DateFormat('h:mm a').format(txn.timestamp)}',
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {

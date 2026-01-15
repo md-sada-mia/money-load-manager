@@ -225,7 +225,7 @@ class _SmsTesterScreenState extends State<SmsTesterScreen> {
             ? '📥 INCOMING' 
             : '📤 OUTGOING',
         ),
-        _buildResultRow('Type', _result!.type.name.toUpperCase()),
+        _buildResultRow('Type', _result!.type.toUpperCase()),
         _buildResultRow('Amount', 'Tk ${_result!.amount.toStringAsFixed(2)}'),
         _buildResultRow('Sender', _result!.sender ?? 'N/A'),
         _buildResultRow('Recipient', _result!.recipient ?? 'N/A'),

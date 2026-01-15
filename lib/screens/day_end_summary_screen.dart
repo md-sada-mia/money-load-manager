@@ -5,6 +5,8 @@ import '../models/models.dart';
 import '../services/transaction_service.dart';
 import 'package:flutter/services.dart';
 import 'transaction_detail_screen.dart';
+import '../utils/logo_helper.dart';
+import '../widgets/transaction_icon.dart';
 
 class DayEndSummaryScreen extends StatefulWidget {
   final DateTime date;
@@ -43,8 +45,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
       final transactions = await _transactionService.getTransactions(
         startDate: startOfDay,
         endDate: endOfDay,
-        // No pagination needed for a single day usually, but let's be safe if user has 1000s? 
-        // User asked for "transactions list", probably all of them.
+        // No pagination needed for a single day
         limit: 1000, 
       );
       
@@ -103,7 +104,6 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
     setState(() => _isRescanning = true);
 
     try {
-      // Use the selected date (or default to NOW if logic requires, but passed date is better)
       final count = await _transactionService.rescanForDate(_selectedDate);
       
       setState(() => _isRescanning = false);
@@ -372,27 +372,20 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
     );
   }
 
-  Map<String, dynamic> _getTypeStats(TransactionType type) {
-    if (_summary == null || _summary!['typeBreakdown'] == null) {
-      return {'count': 0, 'amount': 0.0, 'incomingAmount': 0.0, 'outgoingAmount': 0.0};
-    }
-    final breakdown = _summary!['typeBreakdown'] as Map<String, dynamic>;
-    return (breakdown[type.name] as Map<String, dynamic>?) ?? 
-           {'count': 0, 'amount': 0.0, 'incomingAmount': 0.0, 'outgoingAmount': 0.0};
-  }
-
   Widget _buildChart() {
+    final breakdown = (_summary?['typeBreakdown'] as Map<String, dynamic>?) ?? {};
     final data = <_ChartData>[];
-    for (final type in TransactionType.values) {
-      final stats = _getTypeStats(type);
-      if (((stats['amount'] as num?) ?? 0) > 0) {
+    
+    breakdown.forEach((type, stats) {
+      final s = stats as Map<String, dynamic>;
+      if (((s['amount'] as num?) ?? 0) > 0) {
         data.add(_ChartData(
-          type.displayName,
-          (stats['incomingAmount'] as num? ?? 0).toDouble(),
-          (stats['outgoingAmount'] as num? ?? 0).toDouble(),
+          type,
+          (s['incomingAmount'] as num? ?? 0).toDouble(),
+          (s['outgoingAmount'] as num? ?? 0).toDouble(),
         ));
       }
-    }
+    });
 
     if (data.isEmpty) return const SizedBox.shrink();
     
@@ -418,7 +411,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
             ),
             const SizedBox(height: 24),
             SizedBox(
-              height: 220, // Increased height for top titles
+              height: 220, 
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
@@ -443,10 +436,13 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                         showTitles: true,
                         getTitlesWidget: (value, meta) {
                           if (value.toInt() >= data.length) return const Text('');
+                          // Truncate long names
+                          String label = data[value.toInt()].label;
+                          if (label.length > 5) label = label.substring(0, 5);
                           return Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              data[value.toInt()].label,
+                              label,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           );
@@ -461,13 +457,6 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                         showTitles: true,
                         reservedSize: 30,
                         getTitlesWidget: (value, meta) {
-                          // We can't easily map Y value back to specific bar here without complex logic
-                          // So we rely on the BarChartGroupData logic or just hide it if too complex
-                          // Actually, FlChart renders titles based on Y-axis. 
-                          // TO SHOW VALUES ON TOP OF BARS, we need to use a different approach or 
-                          // rely on tooltips. 
-                          // However, user asked for "amount... explanation". 
-                          // Let's use Tooltips for precision and maybe valid axis labels on Left.
                           return sideTitleWidgets(value, meta);
                         },
                       ),
@@ -483,14 +472,12 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
                       x: entry.key,
                       barsSpace: 4,
                       barRods: [
-                        // Incoming Bar
                         BarChartRodData(
                           toY: entry.value.incoming,
                           color: Colors.green,
                           width: 16,
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
                         ),
-                        // Outgoing Bar
                         BarChartRodData(
                           toY: entry.value.outgoing,
                           color: Colors.red,
@@ -520,7 +507,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
 
   Widget sideTitleWidgets(double value, TitleMeta meta) {
     if (value == meta.min || value == meta.max) return const SizedBox.shrink();
-    return const SizedBox.shrink(); // Hide top axis titles, prefer tooltips/legend
+    return const SizedBox.shrink(); 
   }
 
   Widget _buildLegendItem(String label, Color color) {
@@ -538,23 +525,20 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   }
 
   Widget _buildBreakdown() {
+    final breakdown = (_summary?['typeBreakdown'] as Map<String, dynamic>?) ?? {};
     final breakdownItems = <Widget>[];
     
-    // Process all types
-    for (final type in TransactionType.values) {
-      final stats = _getTypeStats(type);
+    breakdown.forEach((type, stats) {
+      final s = stats as Map<String, dynamic>;
       breakdownItems.add(_buildBreakdownItem(
-        type.displayName,
-        (stats['count'] as int),
-        (stats['incomingAmount'] as num? ?? 0).toDouble(),
-        (stats['outgoingAmount'] as num? ?? 0).toDouble(),
-        type.icon,
-        type.color,
+        type, // Type name
+        (s['count'] as int),
+        (s['incomingAmount'] as num? ?? 0).toDouble(),
+        (s['outgoingAmount'] as num? ?? 0).toDouble(),
       ));
       breakdownItems.add(const Divider());
-    }
+    });
     
-    // Remove last divider if exists
     if (breakdownItems.isNotEmpty && breakdownItems.last is Divider) {
       breakdownItems.removeLast();
     }
@@ -579,7 +563,10 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
     );
   }
 
-  Widget _buildBreakdownItem(String label, int count, double incoming, double outgoing, IconData icon, Color color) {
+  Widget _buildBreakdownItem(String label, int count, double incoming, double outgoing) {
+    // Use LogoHelper for icon and color
+    final color = LogoHelper.getColor(label);
+    
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -590,7 +577,10 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
               color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: SizedBox(
+               width: 24, height: 24,
+               child: TransactionIcon(type: label, size: 24),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -683,38 +673,14 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
   }
 
   Widget _buildTransactionTile(Transaction txn) {
-    IconData icon;
-    Color color;
-    
-    switch (txn.type) {
-      case TransactionType.flexiload:
-        icon = Icons.phone_android;
-        color = Colors.blue;
-        break;
-      case TransactionType.bkash:
-        icon = Icons.account_balance_wallet;
-        color = Colors.pink;
-        break;
-      case TransactionType.nagad:
-        icon = Icons.account_balance_wallet;
-        color = Colors.redAccent;
-        break;
-      case TransactionType.utilityBill:
-        icon = Icons.receipt_long;
-        color = Colors.orange;
-        break;
-      case TransactionType.other:
-        icon = Icons.more_horiz;
-        color = Colors.grey;
-        break;
-    }
+    Color color = LogoHelper.getColor(txn.type);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: 0.1),
-          child: Icon(icon, color: color),
+          child: TransactionIcon(type: txn.type),
         ),
         title: Row(
           children: [
@@ -735,7 +701,7 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
           ],
         ),
         subtitle: Text(
-          '${txn.type.name} • ${DateFormat('h:mm a').format(txn.timestamp)}',
+          '${txn.type} • ${DateFormat('h:mm a').format(txn.timestamp)}',
         ),
         trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
         onTap: () {
@@ -753,8 +719,6 @@ class _DayEndSummaryScreenState extends State<DayEndSummaryScreen> {
       ),
     );
   }
-
-
 }
 
 class _ChartData {

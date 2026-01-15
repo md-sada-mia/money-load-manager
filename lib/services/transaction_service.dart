@@ -2,6 +2,7 @@ import '../models/models.dart';
 import '../database/database_helper.dart';
 import 'package:intl/intl.dart';
 import 'sms_listener.dart';
+import '../utils/logo_helper.dart';
 
 /// Service for managing transactions
 class TransactionService {
@@ -27,7 +28,7 @@ class TransactionService {
   }
 
   /// Get transactions by type
-  Future<List<Transaction>> getTransactionsByType(TransactionType type) async {
+  Future<List<Transaction>> getTransactionsByType(String type) async {
     final result = await _db.getTransactionsByType(type);
     return result;
   }
@@ -35,7 +36,7 @@ class TransactionService {
   Future<List<Transaction>> getTransactions({
     DateTime? startDate,
     DateTime? endDate,
-    TransactionType? type,
+    String? type,
     TransactionDirection? direction,
     int? limit,
     int? offset,
@@ -114,7 +115,7 @@ class TransactionService {
       buffer.writeln([
         date,
         time,
-        txn.type.name,
+        txn.type,
         txn.amount.toStringAsFixed(2),
         txn.sender ?? '',
         txn.recipient ?? '',
@@ -142,28 +143,16 @@ class TransactionService {
     buffer.writeln('Breakdown:');
     buffer.writeln('-' * 40);
     
-    // Sort keys to maintain consistent order if possible, or just iterate
-    // Order: flexiload, bkash, utilityBill, other
-    final orderedKeys = [
-      TransactionType.flexiload.name,
-      TransactionType.bkash.name,
-      TransactionType.utilityBill.name,
-      TransactionType.other.name
-    ];
+    // Convert keys to list and sort
+    final sortedKeys = typeBreakdown.keys.toList()..sort();
     
-    for (final key in orderedKeys) {
+    for (final key in sortedKeys) {
       final stats = typeBreakdown[key] as Map<String, dynamic>?;
       if (stats != null) {
-        // Beautify the label
+        // Just capitalize for label
         String label = key;
-        if (key == TransactionType.flexiload.name) {
-          label = 'Flexiload';
-        } else if (key == TransactionType.bkash.name) {
-          label = 'bKash/Mobile Money';
-        } else if (key == TransactionType.utilityBill.name) {
-          label = 'Utility Bills';
-        } else if (key == TransactionType.other.name) {
-          label = 'Other';
+        if (label.isNotEmpty) {
+           label = label[0].toUpperCase() + label.substring(1);
         }
 
         buffer.writeln('$label:');
@@ -186,7 +175,8 @@ class TransactionService {
       return txn.rawSms.toLowerCase().contains(lowerQuery) ||
              (txn.sender?.toLowerCase().contains(lowerQuery) ?? false) ||
              (txn.recipient?.toLowerCase().contains(lowerQuery) ?? false) ||
-             txn.amount.toString().contains(lowerQuery);
+             txn.amount.toString().contains(lowerQuery) ||
+             txn.type.toLowerCase().contains(lowerQuery);
     }).toList();
     
     return results;

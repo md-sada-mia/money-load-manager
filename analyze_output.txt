@@ -1,0 +1,58 @@
+Analyzing money_load_manager...                                 
+
+   info • The imported package 'path' isn't a dependency of the importing package • lib/database/database_helper.dart:2:8 • depend_on_referenced_packages
+warning • Unused import: 'package:flutter/material.dart' • lib/models/models.dart:1:8 • unused_import
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/day_end_summary_screen.dart:246:73 • deprecated_member_use
+   info • The import of 'package:flutter/services.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/screens/home_screen.dart:4:8 • unnecessary_import
+warning • The value of the field '_db' isn't used • lib/screens/home_screen.dart:28:24 • unused_field
+warning • The declaration '_buildContent' isn't referenced • lib/screens/home_screen.dart:188:10 • unused_element
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/home_screen.dart:231:73 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/pattern_list_screen.dart:104:34 • deprecated_member_use
+   info • 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre • lib/screens/pattern_list_screen.dart:135:58 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/screens/training_screen.dart:157:11 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/training_screen.dart:318:26 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/training_screen.dart:319:24 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/transaction_detail_screen.dart:42:20 • deprecated_member_use
+   info • 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre • lib/screens/transaction_detail_screen.dart:180:54 • deprecated_member_use
+warning • Unused import: 'package:permission_handler/permission_handler.dart' • lib/services/contact_service.dart:2:8 • unused_import
+   info • Don't invoke 'print' in production code • lib/services/contact_service.dart:30:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/contact_service.dart:32:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/contact_service.dart:65:7 • avoid_print
+  error • Expected a method, getter, setter or operator declaration • lib/services/contact_service.dart:74:1 • expected_executable
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:21:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:48:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:50:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:54:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:100:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:194:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:220:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:223:12 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:227:7 • avoid_print
+warning • The value of the local variable 'cutoffDate' isn't used • lib/services/sms_listener.dart:240:13 • unused_local_variable
+  error • The name 'cutoffDate' is already defined • lib/services/sms_listener.dart:240:13 • duplicate_definition
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:246:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:298:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_listener.dart:359:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/sms_parser.dart:95:15 • avoid_print
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:116:34 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:117:39 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:118:40 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:119:38 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:120:39 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:121:38 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:122:38 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:123:39 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:124:38 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:126:61 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:127:64 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:128:38 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:129:40 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:130:42 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/services/sms_parser.dart:133:40 • curly_braces_in_flow_control_structures
+warning • Unused import: '../utils/logo_helper.dart' • lib/services/transaction_service.dart:5:8 • unused_import
+   info • Statements in an if should be enclosed in a block • lib/utils/logo_helper.dart:61:42 • curly_braces_in_flow_control_structures
+   info • The 'child' argument should be last in widget constructor invocations • lib/widgets/draggable_support_button.dart:187:17 • sort_child_properties_last
+   info • Use interpolation to compose strings and values • lib/widgets/draggable_support_button.dart:197:37 • prefer_interpolation_to_compose_strings
+warning • The operand can't be 'null', so the condition is always 'true' • lib/widgets/transaction_icon.dart:22:19 • unnecessary_null_comparison
+warning • Dead code • lib/widgets/transaction_icon.dart:31:12 • dead_code
+

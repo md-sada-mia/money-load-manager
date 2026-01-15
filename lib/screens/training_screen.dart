@@ -16,12 +16,21 @@ class _TrainingScreenState extends State<TrainingScreen> {
   final _smsController = TextEditingController();
   final _nameController = TextEditingController();
   final _patternController = TextEditingController();
+  final _typeController = TextEditingController(); // For manual type entry
   final DatabaseHelper _db = DatabaseHelper.instance;
   
-  TransactionType _selectedType = TransactionType.flexiload;
+  String _selectedType = 'Flexiload';
+  final List<String> _commonTypes = ['Flexiload', 'bKash', 'Nagad', 'Rocket', 'Utility Bill', 'Other'];
+  
   TransactionDirection _selectedDirection = TransactionDirection.incoming;
   Map<int, String>? _extractedGroups;
   String? _testResult;
+  
+  @override
+  void initState() {
+    super.initState();
+    _typeController.text = _selectedType;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,36 +153,44 @@ class _TrainingScreenState extends State<TrainingScreen> {
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 8),
-        SegmentedButton<TransactionType>(
-          segments: const [
-            ButtonSegment(
-              value: TransactionType.flexiload,
-              label: Text('Flexiload'),
-              icon: Icon(Icons.phone_android),
-            ),
-            ButtonSegment(
-              value: TransactionType.bkash,
-              label: Text('bKash'),
-              icon: Icon(Icons.account_balance_wallet),
-            ),
-            ButtonSegment(
-              value: TransactionType.utilityBill,
-              label: Text('Bills'),
-              icon: Icon(Icons.receipt_long),
-            ),
-            ButtonSegment(
-              value: TransactionType.other,
-              label: Text('Other'),
-              icon: Icon(Icons.more_horiz),
-            ),
+        DropdownButtonFormField<String>(
+          value: _commonTypes.contains(_selectedType) ? _selectedType : 'Other',
+          decoration: const InputDecoration(
+             border: OutlineInputBorder(),
+             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          items: [
+            ..._commonTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))),
+            const DropdownMenuItem(value: 'Custom', child: Text('Custom / Other')),
           ],
-          selected: {_selectedType},
-          onSelectionChanged: (Set<TransactionType> newSelection) {
-            setState(() {
-              _selectedType = newSelection.first;
-            });
+          onChanged: (val) {
+             if (val == 'Custom') {
+               setState(() {
+                 _selectedType = '';
+                 _typeController.text = '';
+               });
+             } else if (val != null) {
+               setState(() {
+                 _selectedType = val;
+                 _typeController.text = val;
+               });
+             }
           },
         ),
+        if (!_commonTypes.contains(_selectedType)) ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _typeController,
+            decoration: const InputDecoration(
+              labelText: 'Custom Type Name',
+              hintText: 'e.g. Grameenphone',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (val) {
+              setState(() => _selectedType = val);
+            },
+          ),
+        ]
       ],
     );
   }
@@ -384,10 +401,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
   Future<void> _savePattern() async {
     final name = _nameController.text.trim();
     final pattern = _patternController.text.trim();
+    final type = _typeController.text.trim();
 
-    if (name.isEmpty || pattern.isEmpty) {
+    if (name.isEmpty || pattern.isEmpty || type.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter pattern name and regex')),
+        const SnackBar(content: Text('Please enter name, pattern and type')),
       );
       return;
     }
@@ -404,7 +422,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       final smsPattern = SmsPattern(
         name: name,
         regexPattern: pattern,
-        transactionType: _selectedType,
+        transactionType: type,
         direction: _selectedDirection,
         fieldMappings: fieldMappings,
       );
@@ -446,7 +464,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       SmsPattern(
         name: '$name',
         regexPattern: r'$pattern',
-        transactionType: ${_selectedType.toString()},
+        transactionType: '$_selectedType',
         direction: ${_selectedDirection.toString()},
         fieldMappings: ${mappingBuffer.toString()},
       ),''';
@@ -465,6 +483,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     _smsController.dispose();
     _nameController.dispose();
     _patternController.dispose();
+    _typeController.dispose();
     super.dispose();
   }
 }

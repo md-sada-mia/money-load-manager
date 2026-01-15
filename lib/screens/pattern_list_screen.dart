@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../database/database_helper.dart';
+import '../utils/logo_helper.dart';
+import '../widgets/transaction_icon.dart';
 
 class PatternListScreen extends StatefulWidget {
   const PatternListScreen({super.key});
@@ -93,22 +95,21 @@ class _PatternListScreenState extends State<PatternListScreen> {
   }
 
   Widget _buildPatternCard(SmsPattern pattern) {
-    IconData icon = pattern.transactionType.icon;
-    Color color = pattern.transactionType.color;
+    Color color = LogoHelper.getColor(pattern.transactionType ?? 'Unknown');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ExpansionTile(
         leading: CircleAvatar(
           backgroundColor: color.withOpacity(0.1),
-          child: Icon(icon, color: color, size: 20),
+          child: TransactionIcon(type: pattern.transactionType ?? 'Unknown', size: 20, color: color),
         ),
         title: Text(
           pattern.name,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          '${pattern.transactionType.name} • Created ${DateFormat('d MMM yyyy').format(pattern.createdAt)}',
+          '${pattern.transactionType} • Created ${DateFormat('d MMM yyyy').format(pattern.createdAt)}',
         ),
         trailing: Switch(
           value: pattern.isActive,

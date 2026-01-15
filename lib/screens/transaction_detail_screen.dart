@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../services/transaction_service.dart';
 import '../widgets/transaction_icon.dart';
+import '../utils/logo_helper.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
   final Transaction transaction;
@@ -35,7 +36,7 @@ class TransactionDetailScreen extends StatelessWidget {
   }
 
   Widget _buildAmountCard(BuildContext context) {
-    Color color = transaction.type.color;
+    Color color = LogoHelper.getColor(transaction.type);
 
     return Card(
       color: color.withOpacity(0.1),
@@ -81,7 +82,7 @@ class TransactionDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              transaction.type.name.toUpperCase(),
+              transaction.type.toUpperCase(),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: color,
                 fontWeight: FontWeight.w500,

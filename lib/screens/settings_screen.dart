@@ -18,6 +18,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final DatabaseHelper _db = DatabaseHelper.instance;
   bool _isImporting = false;
   bool _smsMonitoring = true;
+  bool _saveUnknown = false;
+  bool _saveKnown = false;
 
   @override
   void initState() {
@@ -29,6 +31,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _smsMonitoring = prefs.getBool('sms_monitoring') ?? true;
+      _saveUnknown = prefs.getBool('save_unknown_contacts') ?? false;
+      _saveKnown = prefs.getBool('save_known_contacts') ?? false;
     });
   }
 
@@ -40,6 +44,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (value) {
       await SmsListener.initialize();
     }
+  }
+
+  Future<void> _toggleSaveUnknown(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('save_unknown_contacts', value);
+    setState(() => _saveUnknown = value);
+    // Reload listener settings if needed, or listener will read from prefs dynamically
+    // For now, no reload needed if listener reads pref on each event or re-initializes
+    await SmsListener.updateSettings();
+  }
+
+  Future<void> _toggleSaveKnown(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('save_known_contacts', value);
+    setState(() => _saveKnown = value);
+    await SmsListener.updateSettings();
   }
 
   @override
@@ -58,6 +78,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: const Text('Automatically detect transactions from SMS'),
                 value: _smsMonitoring,
                 onChanged: _toggleSmsMonitoring,
+              ),
+              SwitchListTile(
+                title: const Text('Save Unknown Numbers'),
+                subtitle: const Text('Track transactions from unknown senders'),
+                value: _saveUnknown,
+                onChanged: _toggleSaveUnknown,
+              ),
+              SwitchListTile(
+                title: const Text('Save Saved Contacts'),
+                subtitle: const Text('Track transactions from contacts'),
+                value: _saveKnown,
+                onChanged: _toggleSaveKnown,
               ),
               ListTile(
                 leading: const Icon(Icons.history),
@@ -85,12 +117,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 enabled: false,
               ),
               ListTile(
-                leading: const Icon(Icons.delete_forever),
-                title: const Text('Clear All Data'),
-                subtitle: const Text('Delete all transactions and custom patterns'),
+                leading: const Icon(Icons.restore),
+                title: const Text('Reset App'),
+                subtitle: const Text('Delete all data and reset settings to default'),
                 textColor: Theme.of(context).colorScheme.error,
                 iconColor: Theme.of(context).colorScheme.error,
-                onTap: _confirmClearData,
+                onTap: _confirmResetApp,
               ),
             ],
           ),
@@ -218,13 +250,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _confirmClearData() async {
+  Future<void> _confirmResetApp() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear All Data'),
+        title: const Text('Reset App'),
         content: const Text(
-          'This will permanently delete all transactions, patterns, and summaries. This action cannot be undone.',
+          'This will permanently delete all transactions, patterns, and reset all settings to default. This action cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -236,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
-            child: const Text('Delete All'),
+            child: const Text('Reset App'),
           ),
         ],
       ),
@@ -244,16 +276,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmed == true) {
       try {
+        // 1. Clear Database
         await _db.deleteAllData();
+        
+        // 2. Clear SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+        
+        // 3. Reload Default Patterns
+        await _db.reloadDefaultPatterns();
+        
+        // 4. Reset Local State
+        setState(() {
+          _smsMonitoring = true; // Default
+          _saveUnknown = false; // Default
+          _saveKnown = false; // Default
+        });
+        
+        // 5. Update Listener Settings
+        await SmsListener.updateSettings();
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('All data cleared')),
+            const SnackBar(content: Text('App has been reset to factory defaults')),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error clearing data: $e')),
+            SnackBar(content: Text('Error resetting app: $e')),
           );
         }
       }

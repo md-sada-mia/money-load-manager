@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:async'; // For StreamSubscription
@@ -12,10 +11,10 @@ import 'transaction_detail_screen.dart';
 import 'day_end_summary_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/transaction_icon.dart';
-import '../widgets/transaction_icon.dart';
 import '../widgets/dashboard_config_dialog.dart';
 import '../services/transaction_service.dart';
 import '../widgets/draggable_support_button.dart';
+import '../utils/logo_helper.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,23 +29,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _todaySummary;
   List<Transaction> _recentTransactions = [];
   bool _isLoading = true;
-  StreamSubscription<Transaction>? _transactionSubscription;
+  late StreamSubscription<Transaction> _transactionSubscription;
   
   // Customization state
-  List<TransactionType> _orderedTypes = TransactionType.values.toList();
-  Set<TransactionType> _alwaysShow = {
-    TransactionType.flexiload,
-    TransactionType.bkash,
-    TransactionType.nagad,
-    TransactionType.utilityBill,
+  List<String> _orderedTypes = [];
+  Set<String> _alwaysShow = {
+    
   }; // Default important keys
+  DateTime _selectedDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _loadCustomizationSettings(); // Load first
-    _loadData(); // This loads data
+    _loadCustomizationSettings();
     _subscribeToTransactions();
+    _loadData();
   }
   
   Future<void> _loadCustomizationSettings() async {
@@ -55,39 +52,21 @@ class _HomeScreenState extends State<HomeScreen> {
     // Load Order
     final orderStrings = prefs.getStringList('dashboard_card_order');
     if (orderStrings != null) {
-      final loadedOrder = <TransactionType>[];
-      for (final str in orderStrings) {
-        try {
-          final type = TransactionType.values.firstWhere((e) => e.name == str);
-          loadedOrder.add(type);
-        } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _orderedTypes = orderStrings;
+        });
       }
-      
-      // Add any missing types to the end (in case new types added in update)
-      for (final type in TransactionType.values) {
-        if (!loadedOrder.contains(type)) {
-          loadedOrder.add(type);
-        }
-      }
-      
-      setState(() {
-        _orderedTypes = loadedOrder;
-      });
     }
 
     // Load Always Show
     final alwaysShowStrings = prefs.getStringList('dashboard_always_show');
     if (alwaysShowStrings != null) {
-      final loadedSet = <TransactionType>{};
-      for (final str in alwaysShowStrings) {
-        try {
-          final type = TransactionType.values.firstWhere((e) => e.name == str);
-          loadedSet.add(type);
-        } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _alwaysShow = alwaysShowStrings.toSet();
+        });
       }
-      setState(() {
-        _alwaysShow = loadedSet;
-      });
     }
   }
 
@@ -101,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _transactionSubscription?.cancel();
+    _transactionSubscription.cancel();
     super.dispose();
   }
 
@@ -109,12 +88,38 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final summary = await _transactionService.getTodaySummary();
-      final transactions = await _transactionService.getTodayTransactions();
+      final summary = await _transactionService.getSummaryForDate(_selectedDate);
+      final transactions = await _transactionService.getTransactionsForDate(_selectedDate);
       
+      // Check for new types in summary that aren't in ordered types
+      final breakdown = (summary['typeBreakdown'] as Map<String, dynamic>?) ?? {};
+      final presentTypes = breakdown.keys.toList();
+      bool orderChanged = false;
+      
+      for (final type in presentTypes) {
+        if (!_orderedTypes.contains(type)) {
+          _orderedTypes.add(type);
+          orderChanged = true;
+        }
+      }
+      
+      // Check for new types in recent transactions too
+      for (final txn in transactions) {
+         if (!_orderedTypes.contains(txn.type)) {
+           _orderedTypes.add(txn.type);
+           orderChanged = true;
+         }
+      }
+
+      if (orderChanged) {
+        // Save updated order
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList('dashboard_card_order', _orderedTypes);
+      }
+
       setState(() {
         _todaySummary = summary;
-        _recentTransactions = transactions.take(10).toList();
+        _recentTransactions = transactions.reversed.take(10).toList();
         _isLoading = false;
       });
     } catch (e) {
@@ -124,6 +129,21 @@ class _HomeScreenState extends State<HomeScreen> {
           SnackBar(content: Text('Error loading data: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+      _loadData();
     }
   }
 
@@ -143,7 +163,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
-
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            tooltip: 'Select Date',
+            onPressed: _selectDate,
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Settings',
@@ -165,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      _buildTodayHeader(),
+                      _buildDateHeader(),
                       const SizedBox(height: 20),
                       _buildQuickStats(),
                       const SizedBox(height: 24),
@@ -185,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildTodayHeader(),
+        _buildDateHeader(),
         const SizedBox(height: 20),
         _buildQuickStats(),
         const SizedBox(height: 24),
@@ -196,38 +220,62 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTodayHeader() {
-    final dateStr = DateFormat('EEEE, d MMMM yyyy').format(DateTime.now());
+  Widget _buildDateHeader() {
+    final dateStr = DateFormat('EEEE, d MMMM yyyy').format(_selectedDate);
+    final isToday = DateUtils.isSameDay(_selectedDate, DateTime.now());
     
     return Card(
       color: Theme.of(context).colorScheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              dateStr,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
+      child: InkWell(
+        onTap: _selectDate,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    dateStr,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  if (!isToday)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Past Date',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format((_todaySummary?['totalAmount'] as num?) ?? 0),
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 12),
+              Text(
+                NumberFormat.currency(locale: 'en_IN', symbol: 'Tk ', decimalDigits: 2).format((_todaySummary?['totalAmount'] as num?) ?? 0),
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${(_todaySummary?['totalCount'] as int?) ?? 0} transactions today',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
+              const SizedBox(height: 4),
+              Text(
+                '${(_todaySummary?['totalCount'] as int?) ?? 0} transactions',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -283,10 +331,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: SizedBox(
                      width: 110, // Fixed width for consistent look
                      child: _buildDetailedStatCard(
-                      type.displayName,
+                      type, // Label is same as type usually
                       type,
-                      type.icon,
-                      type.color,
                     ),
                   ),
                 ),
@@ -340,11 +386,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDetailedStatCard(String label, TransactionType type, IconData icon, Color color) {
+  Widget _buildDetailedStatCard(String label, String type) {
     final stats = _getTypeStats(type);
     final count = stats['count'] as int;
     final inAmount = stats['incomingAmount'] as double;
     final outAmount = stats['outgoingAmount'] as double;
+    final color = LogoHelper.getColor(type);
     
     // Bangladesh standard formatting (e.g. 1,50,000)
     final numberFormatter = NumberFormat.decimalPattern('en_IN');
@@ -427,12 +474,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Map<String, dynamic> _getTypeStats(TransactionType type) {
+  Map<String, dynamic> _getTypeStats(String type) {
     if (_todaySummary == null || _todaySummary!['typeBreakdown'] == null) {
       return {'count': 0, 'amount': 0.0, 'incomingAmount': 0.0, 'outgoingAmount': 0.0};
     }
     final breakdown = _todaySummary!['typeBreakdown'] as Map<String, dynamic>;
-    return (breakdown[type.name] as Map<String, dynamic>?) ?? 
+    return (breakdown[type] as Map<String, dynamic>?) ?? 
            {'count': 0, 'amount': 0.0, 'incomingAmount': 0.0, 'outgoingAmount': 0.0};
   }
 
@@ -546,7 +593,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTransactionTile(Transaction txn) {
-    Color color = txn.type.color;
+    Color color = LogoHelper.getColor(txn.type);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -574,7 +621,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         subtitle: Text(
-          '${txn.type.name} • ${DateFormat('h:mm a').format(txn.timestamp)}',
+          '${txn.type} • ${DateFormat('h:mm a').format(txn.timestamp)}',
         ),
         trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
         onTap: () {
@@ -591,7 +638,6 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
-
   }
 
   Future<void> _showCustomizationDialog() async {

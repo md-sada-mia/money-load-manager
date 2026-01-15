@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/models.dart';
 import 'transaction_icon.dart';
+import '../utils/logo_helper.dart';
 
 class DashboardConfigDialog extends StatefulWidget {
-  final List<TransactionType> currentOrder;
-  final Set<TransactionType> alwaysShow;
+  final List<String> currentOrder;
+  final Set<String> alwaysShow;
 
   const DashboardConfigDialog({
     super.key,
@@ -18,8 +18,8 @@ class DashboardConfigDialog extends StatefulWidget {
 }
 
 class _DashboardConfigDialogState extends State<DashboardConfigDialog> {
-  late List<TransactionType> _orderedTypes;
-  late Set<TransactionType> _alwaysShow;
+  late List<String> _orderedTypes;
+  late Set<String> _alwaysShow;
 
   @override
   void initState() {
@@ -32,19 +32,17 @@ class _DashboardConfigDialogState extends State<DashboardConfigDialog> {
     final prefs = await SharedPreferences.getInstance();
     
     // Save order
-    final orderStrings = _orderedTypes.map((e) => e.name).toList();
-    await prefs.setStringList('dashboard_card_order', orderStrings);
+    await prefs.setStringList('dashboard_card_order', _orderedTypes);
 
     // Save always show
-    final alwaysShowStrings = _alwaysShow.map((e) => e.name).toList();
-    await prefs.setStringList('dashboard_always_show', alwaysShowStrings);
+    await prefs.setStringList('dashboard_always_show', _alwaysShow.toList());
 
     if (mounted) {
       Navigator.pop(context, true); // Return true to indicate changes
     }
   }
 
-  void _toggleAlwaysShow(TransactionType type, bool value) {
+  void _toggleAlwaysShow(String type, bool value) {
     setState(() {
       if (value) {
         _alwaysShow.add(type);
@@ -85,11 +83,13 @@ class _DashboardConfigDialogState extends State<DashboardConfigDialog> {
                 },
                 children: _orderedTypes.map((type) {
                   final isAlwaysShow = _alwaysShow.contains(type);
+                  Color color = LogoHelper.getColor(type);
+                  
                   return ListTile(
                     key: ValueKey(type),
-                    leading: TransactionIcon(type: type, size: 24, color: type.color),
+                    leading: TransactionIcon(type: type, size: 24, color: color),
                     title: Text(
-                      type.displayName,
+                      type,
                       style: const TextStyle(fontWeight: FontWeight.w500),
                     ),
                     trailing: Row(
