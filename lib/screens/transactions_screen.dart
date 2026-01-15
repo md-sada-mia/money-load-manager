@@ -55,19 +55,152 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Future<void> _selectDateRange() async {
-    final picked = await showDateRangePicker(
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final startOfLastMonth = DateTime(now.year, now.month - 1, 1);
+    final endOfLastMonth = DateTime(now.year, now.month, 0);
+
+    final selectedOption = await showDialog<String>(
       context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDateRange: _dateRange,
+      builder: (context) => SimpleDialog(
+        title: const Text('Select Date Range'),
+        children: [
+           SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'all_time'),
+            child: const Text('All Time'),
+          ),
+          const Divider(),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'today'),
+            child: const Text('Today'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'yesterday'),
+            child: const Text('Yesterday'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_7'),
+            child: const Text('Last 7 Days'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_30'),
+            child: const Text('Last 30 Days'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'this_month'),
+            child: const Text('This Month'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_month'),
+            child: const Text('Last Month'),
+          ),
+          const Divider(),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_3_months'),
+            child: const Text('Last 3 Months'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_6_months'),
+            child: const Text('Last 6 Months'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_year'),
+            child: const Text('Last 1 Year'),
+          ),
+          const Divider(),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'custom'),
+            child: const Text('Custom Range...'),
+          ),
+        ],
+      ),
     );
 
-    if (picked != null && picked != _dateRange) {
-      setState(() {
-        _dateRange = DateTimeRange(
-            start: picked.start,
-            end: picked.end.add(const Duration(hours: 23, minutes: 59, seconds: 59))
+    if (selectedOption == null) return;
+
+    DateTimeRange? newRange;
+
+    switch (selectedOption) {
+      case 'all_time':
+        newRange = null;
+        break;
+      case 'today':
+        newRange = DateTimeRange(
+          start: today,
+          end: now, // Up to current time
         );
+        break;
+      case 'yesterday':
+        newRange = DateTimeRange(
+          start: yesterday,
+          end: yesterday.add(const Duration(hours: 23, minutes: 59, seconds: 59)),
+        );
+        break;
+      case 'last_7':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 7)),
+          end: now,
+        );
+        break;
+      case 'last_30':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 30)),
+          end: now,
+        );
+        break;
+      case 'this_month':
+        newRange = DateTimeRange(
+          start: startOfMonth,
+          end: now,
+        );
+        break;
+      case 'last_month':
+        newRange = DateTimeRange(
+          start: startOfLastMonth,
+          end: endOfLastMonth.add(const Duration(hours: 23, minutes: 59, seconds: 59)),
+        );
+        break;
+      case 'last_3_months':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 90)),
+          end: now,
+        );
+        break;
+      case 'last_6_months':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 180)),
+          end: now,
+        );
+        break;
+      case 'last_year':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 365)),
+          end: now,
+        );
+        break;
+      case 'custom':
+        final picked = await showDateRangePicker(
+          context: context,
+          firstDate: DateTime(2020),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+          initialDateRange: _dateRange,
+        );
+        if (picked != null) {
+          newRange = DateTimeRange(
+            start: picked.start,
+            end: picked.end.add(const Duration(hours: 23, minutes: 59, seconds: 59)),
+          );
+        } else {
+          return; // Cancelled picker
+        }
+        break;
+    }
+
+    if (newRange != _dateRange) {
+      setState(() {
+        _dateRange = newRange;
       });
       _loadTransactions(reset: true);
     }
@@ -203,11 +336,32 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           preferredSize: const Size.fromHeight(30),
           child: Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              _dateRange != null 
-                  ? '${DateFormat('MMM d').format(_dateRange!.start)} - ${DateFormat('MMM d').format(_dateRange!.end)}'
-                  : 'All Time',
-              style: Theme.of(context).textTheme.bodySmall,
+            child: InkWell(
+              onTap: _selectDateRange,
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _dateRange != null 
+                          ? '${DateFormat('MMM d').format(_dateRange!.start)} - ${DateFormat('MMM d').format(_dateRange!.end)}'
+                          : 'All Time',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_drop_down, 
+                      size: 16, 
+                      color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.7),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
