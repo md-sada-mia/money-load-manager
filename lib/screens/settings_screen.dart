@@ -205,49 +205,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _importHistoricalSms() async {
-    final confirmed = await showDialog<bool>(
+    // 1. Select Range Step
+    final days = await showDialog<int>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Import Historical SMS'),
-        content: const Text(
-          'This will scan SMS messages from the last 30 days and import any matching transactions. This may take a few moments.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder: (context) => SimpleDialog(
+        title: const Text('Select Time Range'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 30),
+            child: const Padding(
+               padding: EdgeInsets.symmetric(vertical: 8),
+               child: Text('Last 1 Month')
+            ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Import'),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 90),
+            child: const Padding(
+               padding: EdgeInsets.symmetric(vertical: 8),
+               child: Text('Last 3 Months')
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 180),
+            child: const Padding(
+               padding: EdgeInsets.symmetric(vertical: 8),
+               child: Text('Last 6 Months')
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 365),
+            child: const Padding(
+               padding: EdgeInsets.symmetric(vertical: 8),
+               child: Text('Last 1 Year')
+            ),
+          ),
+          const Divider(),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, -1), // Custom
+            child: const Padding(
+               padding: EdgeInsets.symmetric(vertical: 8),
+               child: Text('Custom Range (Days)'),
+            ),
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
-
-    setState(() => _isImporting = true);
-
-    try {
-      final count = await SmsListener.importHistoricalSms(days: 30);
+    if (days == null) return;
+    
+    int finalDays = days;
+    if (days == -1) {
+      // Show input dialog for custom days
+      final customDays = await showDialog<int>(
+        context: context,
+        builder: (context) {
+          final controller = TextEditingController();
+          return AlertDialog(
+            title: const Text('Enter Number of Days'),
+            content: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(hintText: 'e.g., 45'),
+              autofocus: true,
+            ),
+            actions: [
+               TextButton(
+                 onPressed: () => Navigator.pop(context),
+                 child: const Text('Cancel'),
+               ),
+               FilledButton(
+                 onPressed: () {
+                   final val = int.tryParse(controller.text);
+                   if (val != null && val > 0) {
+                     Navigator.pop(context, val);
+                   }
+                 },
+                 child: const Text('OK'),
+               )
+            ],
+          );
+        }
+      );
       
-      setState(() => _isImporting = false);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Imported $count transactions')),
-        );
-      }
-    } catch (e) {
-      setState(() => _isImporting = false);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error importing SMS: $e')),
-        );
-      }
+      if (customDays == null) return;
+      finalDays = customDays;
     }
+
+    setState(() => _isImporting = true); // Block settings UI interaction
+    
+    // 2. Show Progress Dialog (Persistent)
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _ImportProgressDialog(days: finalDays),
+    ).then((_) {
+      // Dialog closed (import done or error)
+      setState(() => _isImporting = false);
+    });
   }
 
   Future<void> _confirmResetApp() async {
@@ -448,5 +504,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
+  }
+}
+
+class _ImportProgressDialog extends StatefulWidget {
+  final int days;
+  const _ImportProgressDialog({required this.days});
+
+  @override
+  State<_ImportProgressDialog> createState() => _ImportProgressDialogState();
+}
+
+class _ImportProgressDialogState extends State<_ImportProgressDialog> {
+  double _progress = 0.0;
+  String _status = 'Starting...';
+  
+  @override
+  void initState() {
+    super.initState();
+    _startImport();
+  }
+
+  Future<void> _startImport() async {
+    try {
+      final count = await SmsListener.importHistoricalSms(
+        days: widget.days,
+        onProgress: (prog, status) {
+          if (mounted) {
+            setState(() {
+              _progress = prog;
+              _status = status;
+            });
+          }
+        },
+      );
+      
+      if (mounted) {
+        Navigator.pop(context); // Close progress dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Successfully imported $count transaction(s)')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+         Navigator.pop(context); // Close progress dialog
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Error: $e')),
+         );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Importing SMS'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(value: _progress),
+          const SizedBox(height: 16),
+          Text(_status, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text('${(_progress * 100).toStringAsFixed(1)}%', style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
   }
 }

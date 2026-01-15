@@ -234,7 +234,10 @@ class SmsListener {
 
   /// Import historical SMS messages
   /// Fetches and processes SMS day-by-day to prevent OOM errors
-  static Future<int> importHistoricalSms({int days = 30}) async {
+  static Future<int> importHistoricalSms({
+    int days = 30, 
+    Function(double progress, String status)? onProgress,
+  }) async {
     try {
       // 1. Check Permissions using permission_handler
       // We use permission_handler because another_telephony has a crash bug (Reply already submitted)
@@ -248,6 +251,7 @@ class SmsListener {
       }
 
       // 2. Ensure settings loaded & Pre-load contacts ONCE
+      onProgress?.call(0.0, 'Preparing import...');
       await updateSettings();
       await _contactService.loadContacts();
 
@@ -257,6 +261,9 @@ class SmsListener {
 
       // 3. Iterate day by day
       for (int d = 0; d < days; d++) {
+        final progress = (d / days);
+        onProgress?.call(progress, 'Scanning day ${d + 1} of $days...');
+        
         // Calculate time range for this "day"
         // We go backwards from today? Or just iterate 0..days
         // d=0 => today. d=1 => yesterday.
@@ -359,7 +366,8 @@ class SmsListener {
         // Small delay between days to let GC run if needed
         await Future.delayed(const Duration(milliseconds: 50));
       }
-
+      
+      onProgress?.call(1.0, 'Import complete!');
       return totalImportCount;
     } catch (e) {
       print('Error importing historical SMS: $e');
