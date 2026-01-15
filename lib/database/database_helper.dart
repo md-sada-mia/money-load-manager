@@ -379,19 +379,14 @@ class DatabaseHelper {
     return updateCount;
   }
 
-  /// Calculate daily summary from transactions in real-time
-  /// Returns a Map with aggregated transaction data
-  Future<Map<String, dynamic>> calculateDailySummary(DateTime date) async {
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
-    
-    final transactions = await getTransactionsByDateRange(startOfDay, endOfDay);
+    /// Calculate summary from transactions for a specific date range
+  Future<Map<String, dynamic>> calculateSummary(DateTime start, DateTime end) async {
+    final transactions = await getTransactionsByDateRange(start, end);
 
     int incomingCount = 0, outgoingCount = 0;
     double incomingAmount = 0, outgoingAmount = 0;
     
     // Initialize breakdown stats for each type
-    // Type is now dynamic String, so we build it eagerly
     final Map<String, Map<String, dynamic>> typeStats = {};
 
     for (var txn in transactions) {
@@ -404,10 +399,6 @@ class DatabaseHelper {
         outgoingAmount += txn.amount;
       }
 
-      // Track by type (String) which is Sender Name mostly
-      // Normalize type name maybe? "bKash" vs "Bkash". 
-      // Let's assume it's stored somewhat consistently or we display as is.
-      // Better to use normalized keys if we can.
       final typeKey = txn.type; 
       
       if (!typeStats.containsKey(typeKey)) {
@@ -431,7 +422,8 @@ class DatabaseHelper {
     }
 
     return {
-      'date': startOfDay,
+      'startDate': start,
+      'endDate': end,
       'totalCount': transactions.length,
       'totalAmount': incomingAmount + outgoingAmount,
       'incomingCount': incomingCount,
@@ -440,6 +432,14 @@ class DatabaseHelper {
       'outgoingAmount': outgoingAmount,
       'typeBreakdown': typeStats,
     };
+  }
+
+  /// Calculate daily summary from transactions in real-time
+  /// Returns a Map with aggregated transaction data
+  Future<Map<String, dynamic>> calculateDailySummary(DateTime date) async {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+    return await calculateSummary(startOfDay, endOfDay);
   }
 
   Future<void> close() async {

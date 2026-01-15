@@ -36,11 +36,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Set<String> _alwaysShow = {
     
   }; // Default important keys
-  DateTime _selectedDate = DateTime.now();
+  DateTimeRange _selectedDateRange = DateTimeRange(
+    start: DateTime.now(),
+    end: DateTime.now(),
+  );
 
   @override
   void initState() {
     super.initState();
+    // Initialize to today
+    final now = DateTime.now();
+    _selectedDateRange = DateTimeRange(
+      start: DateTime(now.year, now.month, now.day),
+      end: DateTime(now.year, now.month, now.day, 23, 59, 59),
+    );
+    
     _loadCustomizationSettings();
     _subscribeToTransactions();
     _loadData();
@@ -88,8 +98,16 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final summary = await _transactionService.getSummaryForDate(_selectedDate);
-      final transactions = await _transactionService.getTransactionsForDate(_selectedDate);
+      final summary = await _transactionService.getSummaryForDateRange(
+        _selectedDateRange.start, 
+        _selectedDateRange.end
+      );
+      
+      final transactions = await _transactionService.getTransactions(
+        startDate: _selectedDateRange.start,
+        endDate: _selectedDateRange.end,
+        limit: 20
+      );
       
       // Check for new types in summary that aren't in ordered types
       final breakdown = (summary['typeBreakdown'] as Map<String, dynamic>?) ?? {};
@@ -119,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _todaySummary = summary;
-        _recentTransactions = transactions.reversed.take(10).toList();
+        _recentTransactions = transactions; // Already sorted by Service/DB usually DESC
         _isLoading = false;
       });
     } catch (e) {
@@ -132,20 +150,150 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
+  Future<void> _selectDateRange() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final startOfLastMonth = DateTime(now.year, now.month - 1, 1);
+    final endOfLastMonth = DateTime(now.year, now.month, 0);
+
+    final selectedOption = await showDialog<String>(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2024),
-      lastDate: DateTime.now(),
+      builder: (context) => SimpleDialog(
+        title: const Text('Select Date Range'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'today'),
+            child: const Text('Today'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'yesterday'),
+            child: const Text('Yesterday'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_7'),
+            child: const Text('Last 7 Days'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_30'),
+            child: const Text('Last 30 Days'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'this_month'),
+            child: const Text('This Month'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_month'),
+            child: const Text('Last Month'),
+          ),
+          const Divider(),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_3_months'),
+            child: const Text('Last 3 Months'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_6_months'),
+            child: const Text('Last 6 Months'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'last_year'),
+            child: const Text('Last 1 Year'),
+          ),
+          const Divider(),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'custom'),
+            child: const Text('Custom Range...'),
+          ),
+        ],
+      ),
     );
-    if (picked != null && picked != _selectedDate) {
+
+    if (selectedOption == null) return;
+
+    DateTimeRange? newRange;
+
+    switch (selectedOption) {
+      case 'today':
+        newRange = DateTimeRange(
+          start: today,
+          end: now, 
+        );
+        break;
+      case 'yesterday':
+        newRange = DateTimeRange(
+          start: yesterday,
+          end: yesterday.add(const Duration(hours: 23, minutes: 59, seconds: 59)),
+        );
+        break;
+      case 'last_7':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 7)),
+          end: now,
+        );
+        break;
+      case 'last_30':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 30)),
+          end: now,
+        );
+        break;
+      case 'this_month':
+        newRange = DateTimeRange(
+          start: startOfMonth,
+          end: now,
+        );
+        break;
+      case 'last_month':
+        newRange = DateTimeRange(
+          start: startOfLastMonth,
+          end: endOfLastMonth.add(const Duration(hours: 23, minutes: 59, seconds: 59)),
+        );
+        break;
+       case 'last_3_months':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 90)),
+          end: now,
+        );
+        break;
+      case 'last_6_months':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 180)),
+          end: now,
+        );
+        break;
+      case 'last_year':
+        newRange = DateTimeRange(
+          start: now.subtract(const Duration(days: 365)),
+          end: now,
+        );
+        break;
+      case 'custom':
+        final picked = await showDateRangePicker(
+          context: context,
+          firstDate: DateTime(2020),
+          lastDate: DateTime.now(),
+          initialDateRange: _selectedDateRange,
+        );
+        if (picked != null) {
+          newRange = DateTimeRange(
+            start: picked.start,
+            end: picked.end.add(const Duration(hours: 23, minutes: 59, seconds: 59)),
+          );
+        } else {
+          return; 
+        }
+        break;
+    }
+
+    if (newRange != null && newRange != _selectedDateRange) {
       setState(() {
-        _selectedDate = picked;
+        _selectedDateRange = newRange!;
       });
       _loadData();
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -164,9 +312,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.calendar_today),
-            tooltip: 'Select Date',
-            onPressed: _selectDate,
+            icon: const Icon(Icons.date_range),
+            tooltip: 'Select Date Range',
+            onPressed: _selectDateRange,
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -221,13 +369,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDateHeader() {
-    final dateStr = DateFormat('EEEE, d MMMM yyyy').format(_selectedDate);
-    final isToday = DateUtils.isSameDay(_selectedDate, DateTime.now());
+    final startStr = DateFormat('MMM d').format(_selectedDateRange.start);
+    final endStr = DateFormat('MMM d').format(_selectedDateRange.end);
+    final isToday = DateUtils.isSameDay(_selectedDateRange.start, DateTime.now()) && 
+                    DateUtils.isSameDay(_selectedDateRange.end, DateTime.now());
     
+    // Check if single day selection
+    final isSingleDay = DateUtils.isSameDay(_selectedDateRange.start, _selectedDateRange.end);
+    String dateLabel = isSingleDay 
+        ? DateFormat('EEEE, d MMMM yyyy').format(_selectedDateRange.start)
+        : '$startStr - $endStr';
+
     return Card(
       color: Theme.of(context).colorScheme.primaryContainer,
       child: InkWell(
-        onTap: _selectDate,
+        onTap: _selectDateRange,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -238,7 +394,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    dateStr,
+                    dateLabel,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
@@ -251,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        'Past Date',
+                        isSingleDay ? 'Past Date' : 'Custom Range',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: Theme.of(context).colorScheme.onPrimaryContainer,
                         ),
@@ -269,7 +425,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${(_todaySummary?['totalCount'] as int?) ?? 0} transactions',
+                '${(_todaySummary?['totalCount'] as int?) ?? 0} transactions', // "today" removed
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
                 ),

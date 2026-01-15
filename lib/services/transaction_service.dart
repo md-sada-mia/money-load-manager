@@ -78,6 +78,11 @@ class TransactionService {
     return await _db.calculateDailySummary(date);
   }
 
+  /// Get summary for a specific date range
+  Future<Map<String, dynamic>> getSummaryForDateRange(DateTime start, DateTime end) async {
+    return await _db.calculateSummary(start, end);
+  }
+
   /// Create a new transaction manually
   Future<int> createTransaction(Transaction transaction) async {
     return await _db.createTransaction(transaction);
