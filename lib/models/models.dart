@@ -22,6 +22,7 @@ class Transaction {
   final String? txnId;
   final double? balance;
   final DateTime? smsTimestamp;
+  final bool isSynced;
 
   Transaction({
     this.id,
@@ -38,6 +39,7 @@ class Transaction {
     this.txnId,
     this.balance,
     this.smsTimestamp,
+    this.isSynced = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -56,6 +58,7 @@ class Transaction {
       'txn_id': txnId,
       'balance': balance,
       'sms_timestamp': smsTimestamp?.millisecondsSinceEpoch,
+      'is_synced': isSynced ? 1 : 0,
     };
   }
 
@@ -80,6 +83,7 @@ class Transaction {
       smsTimestamp: map['sms_timestamp'] != null 
           ? DateTime.fromMillisecondsSinceEpoch(map['sms_timestamp'] as int)
           : null,
+      isSynced: (map['is_synced'] as int? ?? 0) == 1,
     );
   }
 
@@ -98,6 +102,7 @@ class Transaction {
     String? txnId,
     double? balance,
     DateTime? smsTimestamp,
+    bool? isSynced,
   }) {
     return Transaction(
       id: id ?? this.id,
@@ -114,6 +119,7 @@ class Transaction {
       txnId: txnId ?? this.txnId,
       balance: balance ?? this.balance,
       smsTimestamp: smsTimestamp ?? this.smsTimestamp,
+      isSynced: isSynced ?? this.isSynced,
     );
   }
 }

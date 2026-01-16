@@ -7,21 +7,44 @@ import 'package:flutter/foundation.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'sync_provider.dart';
+import 'package:flutter/services.dart';
 import '../models/sync_models.dart';
 
 class LanSyncService implements SyncProvider {
+  static const MethodChannel _msgChannel = MethodChannel('com.money_load_manager.wifi');
+
   // ... existing code ...
 
   Future<String?> _getLocalIpAddress() async {
+    // Strategy 1: Socket Trick (Most reliable for active network)
     try {
-      for (var interface in await NetworkInterface.list()) {
+      // Try Google DNS first (Internet)
+      final socket = await Socket.connect('8.8.8.8', 53, timeout: const Duration(seconds: 1));
+      final ip = socket.address.address;
+      await socket.close();
+      return ip;
+    } catch (e) {
+      _statusController.add('IP Strat 1 (Internet) failed: $e');
+    }
+
+    // Strategy 2: Network Interfaces (Fallback)
+    try {
+      final interfaces = await NetworkInterface.list();
+      _statusController.add('Found ${interfaces.length} interfaces.');
+      
+      for (var interface in interfaces) {
+        _statusController.add('Interface: ${interface.name}');
         for (var addr in interface.addresses) {
+            _statusController.add(' - Addr: ${addr.address} (Loopback: ${addr.isLoopback}, LinkLocal: ${addr.isLinkLocal}, IPv4: ${addr.type == InternetAddressType.IPv4})');
+            
             if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback && !addr.isLinkLocal) {
               return addr.address;
             }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      _statusController.add('IP Strat 2 (Interfaces) failed: $e');
+    }
     return null;
   }
   static const String _serviceType = '_moneyload._tcp';
@@ -38,6 +61,10 @@ class LanSyncService implements SyncProvider {
   
   bool _isAdvertising = false;
   bool _isDiscovering = false;
+  String? _currentIp;
+  int get servicePort => _port;
+  String? get serverIp => _currentIp;
+
 
   @override
   Stream<SyncDevice> get discoveredDevices => _discoveredDevicesController.stream;
@@ -53,13 +80,26 @@ class LanSyncService implements SyncProvider {
     if (_isAdvertising) return;
     
     try {
+      // 0. Acquire Lock FIRST
+      try {
+        await _msgChannel.invokeMethod('acquireMulticastLock');
+        debugPrint('LAN: Acquired MulticastLock (Advertising)');
+      } catch (e) {
+         debugPrint('LAN: Failed to acquire lock: $e');
+      }
+
       // 1. Start TCP Server
       _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, _port);
       _serverSocket!.listen(_handleIncomingConnection);
       
       // 2. Get Local IP
       String? ip = await NetworkInfo().getWifiIP();
-      ip ??= await _getLocalIpAddress(); // Fallback
+      _statusController.add('Wifi Info IP: $ip');
+      
+      if (ip == null || ip.isEmpty) {
+         ip = await _getLocalIpAddress(); // Fallback
+         _statusController.add('Fallback NetworkInterface IP: $ip');
+      }
       
       _statusController.add('Advertising on LAN ($ip)');
       
@@ -75,13 +115,21 @@ class LanSyncService implements SyncProvider {
       );
       
       _broadcast = BonsoirBroadcast(service: service);
+      await _broadcast!.initialize();
+      
+      // Update IP immediately so UI shows it even if broadcast fails later
+      _currentIp = ip;
+      _isAdvertising = true;
+      _statusController.add('Service Ready. IP: $ip'); // Explicit UI log
+
       await _broadcast!.start();
       
-      _isAdvertising = true;
       debugPrint('LAN: Started advertising on port $_port with IP $ip');
     } catch (e) {
       _statusController.add('Error advertising: $e');
       debugPrint('LAN Error advertising: $e');
+      // Even if advertising fails, keep IP visible if we found it
+      if (_currentIp != null) _isAdvertising = true; 
     }
   }
 
@@ -89,17 +137,28 @@ class LanSyncService implements SyncProvider {
   Future<void> stopAdvertising() async {
     await _broadcast?.stop();
     await _serverSocket?.close();
+    
+    try {
+      await _msgChannel.invokeMethod('releaseMulticastLock');
+    } catch (_) {}
+    
     _isAdvertising = false;
+    _currentIp = null;
     _statusController.add('Stopped advertising');
   }
 
   @override
   Future<void> startDiscovery() async {
     if (_isDiscovering) return;
+    
+    // Acquire Lock for Discovery too
+    try {
+        await _msgChannel.invokeMethod('acquireMulticastLock');
+    } catch (_) {}
 
     try {
       _discovery = BonsoirDiscovery(type: _serviceType);
-      // await _discovery!.start(); // Moved to after listener setup
+      await _discovery!.initialize(); 
       
       _discovery!.eventStream!.listen((event) {
         // Workaround: Use dynamic check as class names vary by version
@@ -151,6 +210,11 @@ class LanSyncService implements SyncProvider {
   @override
   Future<void> stopDiscovery() async {
     await _discovery?.stop();
+    
+    try {
+      await _msgChannel.invokeMethod('releaseMulticastLock');
+    } catch (_) {}
+    
     _isDiscovering = false;
     _statusController.add('Stopped scanning');
   }
@@ -192,26 +256,37 @@ class LanSyncService implements SyncProvider {
 
   @override
   Future<bool> connect(String targetId) async {
-    return true; 
+    _statusController.add('Checking LAN connection to $targetId...');
+    try {
+      final socket = await Socket.connect(targetId, _port, timeout: const Duration(seconds: 3));
+      socket.destroy(); // Close immediately, we just wanted to check connectivity
+      _statusController.add('LAN Connection OK.');
+      return true;
+    } catch (e) {
+      _statusController.add('LAN Connection check failed: $e');
+      return false;
+    }
   }
 
   @override
   Future<void> sendData(String targetId, SyncPacket packet) async {
-     // For LAN, targetId needs to be IP address or look up from discovered list.
-     // This is a simplification. We should maintain a map of id -> IP.
-     
-     // PROVISIONAL: We assume targetId IS the IP address for this basic implementation, 
-     // or we implement a full ip-map.
-     
      try {
-       final socket = await Socket.connect(targetId, _port);
+       final socket = await Socket.connect(targetId, _port, timeout: const Duration(seconds: 5));
+       _clientSocket = socket; // Keep reference to close later if needed
+       
        final jsonStr = jsonEncode(packet.toJson());
        socket.write(jsonStr);
        await socket.flush();
+       
+       // Wait for ACK or just close? For now close.
+       // Ideally we wait for ACK.
        await socket.close();
+       _clientSocket = null;
+       
        _statusController.add('Data sent to $targetId');
      } catch (e) {
        _statusController.add('Error sending: $e');
+       rethrow; // Rethrow so SyncManager knows it failed
      }
   }
 

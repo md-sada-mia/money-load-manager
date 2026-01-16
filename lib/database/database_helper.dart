@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 7, // Upgraded to ensure sync tables exist
+      version: 8, // Upgraded to support is_synced flag
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -45,7 +45,8 @@ class DatabaseHelper {
         reference TEXT,
         txn_id TEXT,
         balance REAL,
-        sms_timestamp INTEGER
+        sms_timestamp INTEGER,
+        is_synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -207,6 +208,10 @@ class DatabaseHelper {
         )
       ''');
     }
+    if (oldVersion < 8) {
+      // Version 8: Add is_synced column for sync optimization
+      await db.execute('ALTER TABLE transactions ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   // Sync Log Operations
@@ -303,7 +308,9 @@ class DatabaseHelper {
     for (var txn in transactions) {
       bool exists = await isDuplicateTransaction(txn);
       if (!exists) {
-        batch.insert('transactions', txn.toMap());
+        // Strip the ID so SQLite assigns a new one local to this device
+        final map = txn.toMap()..remove('id');
+        batch.insert('transactions', map);
         insertedCount++;
       }
     }
@@ -454,6 +461,32 @@ class DatabaseHelper {
     }
 
     return false;
+  }
+
+  // Sync Optimization Helpers
+  Future<List<Transaction>> getUnsyncedTransactions() async {
+    final db = await database;
+    final result = await db.query(
+      'transactions',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+      orderBy: 'timestamp ASC', // Send oldest first
+    );
+    return List<Transaction>.from(result.map((map) => Transaction.fromMap(map)));
+  }
+
+  Future<void> markTransactionsAsSynced(List<int> ids) async {
+    final db = await database;
+    final batch = db.batch();
+    for (final id in ids) {
+      batch.update(
+        'transactions',
+        {'is_synced': 1},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   // Pattern operations

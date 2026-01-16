@@ -19,6 +19,7 @@ class SyncManager {
 
   final LanSyncService _lanService = LanSyncService();
   final NearbySyncService _nearbyService = NearbySyncService();
+  LanSyncService get lanService => _lanService;
 
   SyncRole _role = SyncRole.worker;
   bool _isSyncing = false;
@@ -53,9 +54,12 @@ class SyncManager {
     }
 
     // specific listeners for providers
-    // specific listeners for providers
     _lanService.dataReceived.listen(_handleDataReceived);
     _nearbyService.dataReceived.listen(_handleDataReceived);
+    
+    // Forward logs/status from services
+    _lanService.connectionStatus.listen(_addLog);
+    _nearbyService.connectionStatus.listen(_addLog);
     
     // Listen for Discovery (Worker Logic)
     _lanService.discoveredDevices.listen((device) => _handleDiscoveredDevice(device, _lanService));
@@ -208,6 +212,10 @@ class SyncManager {
      _statusController.add(message);
   }
 
+  void clearLogs() {
+    _logs.clear();
+  }
+
 
 
 
@@ -269,16 +277,16 @@ class SyncManager {
     _isBusySyncing = true;
 
     try {
-      // 1. Fetch ALL transactions
-      final transactions = await DatabaseHelper.instance.getAllTransactions();
+      // 1. Fetch only UNSYNCED transactions
+      final transactions = await DatabaseHelper.instance.getUnsyncedTransactions();
       
       if (transactions.isEmpty) {
-         _statusController.add('No transactions to sync.');
+         _statusController.add('No new transactions to sync.');
          _isBusySyncing = false;
          return;
       }
       
-      _statusController.add('Sending ${transactions.length} transactions...');
+      _statusController.add('Sending ${transactions.length} new transactions...');
 
       // 2. Wrap in Packet
       final packet = SyncPacket(
@@ -335,6 +343,14 @@ class SyncManager {
             
             _statusController.add('Sync Complete!');
             success = true;
+            
+            // Mark as Synced
+            final ids = transactions.where((t) => t.id != null).map((t) => t.id!).toList();
+            if (ids.isNotEmpty) {
+               await DatabaseHelper.instance.markTransactionsAsSynced(ids);
+               _addLog('Marked ${ids.length} transactions as synced.');
+            }
+
             break; // Success! exit loop
         } catch (e) {
             _statusController.add('Attempt ${i + 1} failed: $e');

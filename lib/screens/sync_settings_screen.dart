@@ -123,17 +123,52 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
           
 
           if (_syncManager.role == SyncRole.master)
-            Padding(
-               padding: const EdgeInsets.all(8.0),
-               child: Text('Master Mode: Keep this screen open to receive data.', style: TextStyle(color: Colors.grey[600]),),
-            ),
+             Card(
+                color: Colors.green[50],
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                       const Text('Server Running', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                       const SizedBox(height: 5),
+                       SelectableText(
+                         'IP: ${_syncManager.lanService.serverIp ?? "Waiting..."}   Port: ${_syncManager.lanService.servicePort}',
+                         style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                       ),
+                       const SizedBox(height: 5),
+                       const Text('Keep screen on. Make sure Worker is on same Wi-Fi.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+             ),
 
 
           const SizedBox(height: 20),
           const Divider(),
-          const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: Text('Activity Log', style: TextStyle(fontWeight: FontWeight.bold)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Activity Log', style: TextStyle(fontWeight: FontWeight.bold)),
+                TextButton.icon(
+                  onPressed: () {
+                    _syncManager.clearLogs();
+                    setState(() {
+                      _logs.clear();
+                    });
+                  },
+                  icon: const Icon(Icons.clear_all, size: 16),
+                  label: const Text('Clear'),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: Colors.redAccent,
+                  ),
+                ),
+              ],
+            ),
           ),
           
           // Log Console
