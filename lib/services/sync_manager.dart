@@ -5,12 +5,15 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../database/database_helper.dart';
 import '../models/models.dart';
 import '../models/sync_models.dart';
 import 'lan_sync_service.dart';
 import 'nearby_sync_service.dart';
 import 'sync_provider.dart';
+import 'sms_listener.dart';
+import 'notification_service.dart';
 
 class SyncManager {
   static final SyncManager _instance = SyncManager._internal();
@@ -36,10 +39,18 @@ class SyncManager {
 
   int _sdkInt = 0;
 
+  bool _useLan = false;
+  bool _useNearby = false;
+
+  bool get useLan => _useLan;
+  bool get useNearby => _useNearby;
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final roleIndex = prefs.getInt('sync_role') ?? 1; // Default Worker
     _role = SyncRole.values[roleIndex];
+    _useLan = prefs.getBool('use_lan') ?? false;
+    _useNearby = prefs.getBool('use_nearby') ?? false;
     
     // Get Device Info
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
@@ -64,19 +75,46 @@ class SyncManager {
     // Listen for Discovery (Worker Logic)
     _lanService.discoveredDevices.listen((device) => _handleDiscoveredDevice(device, _lanService));
     _nearbyService.discoveredDevices.listen((device) => _handleDiscoveredDevice(device, _nearbyService));
+    
+    // Listen for New Transactions (Worker Trigger)
+    SmsListener.transactionStream.listen((_) {
+      if (_role == SyncRole.worker && (_useLan || _useNearby)) {
+        _addLog('New transaction detected. Triggering sync...');
+        // Small delay to ensure DB write is complete
+        Future.delayed(const Duration(seconds: 2), () {
+           // We re-trigger discovery/sync flow
+           startSync(); 
+        });
+      }
+    });
+
+    // Auto-start if enabled
+    if (_useLan || _useNearby) {
+      // Small delay to ensure everything is ready
+      Future.delayed(const Duration(seconds: 2), () {
+        startSync();
+      });
+    }
   }
 
-  // ... (setRole, role, startSync, stopSync same as above, keeping them intact/implicit)
+  // Permission Logic
+  Future<bool> _checkLanPermissions() async {
+    // LAN needs Location (for Wi-Fi SSID access on some Android versions) 
+    // and Notification (for Service)
+     Map<Permission, PermissionStatus> statuses = await [
+      Permission.location,
+      Permission.notification,
+    ].request();
+    return statuses.values.every((s) => s.isGranted);
+  }
 
-  Future<bool> _checkPermissions() async {
-    List<Permission> permissions = [];
+  Future<bool> _checkNearbyPermissions() async {
+    List<Permission> permissions = [
+      Permission.location,
+      Permission.notification,
+    ];
     
-    // Always needed
-    permissions.add(Permission.location);
-    
-    // Android 12+ (API 31+)
-    if (Platform.isAndroid) {
-       // Android 12 (API 31) needs Bluetooth permissions for Nearby
+     if (Platform.isAndroid) {
        if (_sdkInt >= 31) {
          permissions.addAll([
            Permission.bluetoothAdvertise,
@@ -84,34 +122,74 @@ class SyncManager {
            Permission.bluetoothScan,
          ]);
        }
-       
-       // Android 13 (API 33) needs Nearby Wifi Devices
        if (_sdkInt >= 33) {
          permissions.add(Permission.nearbyWifiDevices); 
        }
     }
-
-    Map<Permission, PermissionStatus> statuses = await permissions.request();
     
-    bool allGranted = true;
-    List<String> deniedList = [];
+    Map<Permission, PermissionStatus> statuses = await permissions.request();
+    return statuses.values.every((s) => s.isGranted);
+  }
 
-    statuses.forEach((permission, status) {
-      if (!status.isGranted) {
-        // Strict consistency check: Fail if denied or permanently denied
-        if (status.isDenied || status.isPermanentlyDenied) {
-           allGranted = false;
-           deniedList.add(permission.toString());
-        }
+  // ... (in setUseLan)
+  Future<void> setUseLan(bool enable) async {
+    if (enable) {
+      if (!await _checkLanPermissions()) {
+        _statusController.add('LAN Permissions Missing');
+        return;
       }
-    });
+    }
+    _useLan = enable;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('use_lan', enable);
+    
+    // Manage Background Service
+    final service = FlutterBackgroundService();
+    if (_useLan || _useNearby) {
+      if (!await service.isRunning()) {
+        await service.startService();
+      }
+    } else {
+      service.invoke('stopService');
+    }
 
-    if (!allGranted) {
-      _statusController.add('Missing Permissions: ${deniedList.join(', ')}');
-      debugPrint('Sync: Missing Permissions: $deniedList');
+    if (enable) {
+      startSync();
+    } else {
+      // If disabling LAN, we might still be running Nearby
+      // Simplest approach: stop everything and restart if needed
+      await stopSync(); 
+      if (_useNearby) startSync();
+    }
+  }
+
+  Future<void> setUseNearby(bool enable) async {
+    if (enable) {
+      if (!await _checkNearbyPermissions()) {
+        _statusController.add('Nearby Permissions Missing');
+        return;
+      }
+    }
+    _useNearby = enable;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('use_nearby', enable);
+    
+    // Manage Background Service
+    final service = FlutterBackgroundService();
+    if (_useLan || _useNearby) {
+      if (!await service.isRunning()) {
+        await service.startService();
+      }
+    } else {
+      service.invoke('stopService');
     }
     
-    return allGranted;
+     if (enable) {
+      startSync();
+    } else {
+      await stopSync();
+      if (_useLan) startSync();
+    }
   }
 
   Future<void> setRole(SyncRole role) async {
@@ -127,48 +205,47 @@ class SyncManager {
 
   Future<void> startSync() async {
     if (_isSyncing) {
-      if (_role == SyncRole.worker) {
-        _addLog('Restarting Sync Process...');
-        await stopSync();
-        // Proceed to start logic below (since stopSync sets _isSyncing = false)
-      } else {
-        _addLog('Sync Service already running.');
-        return;
-      }
+       _addLog('Sync Service restarting...');
+       await stopSync();
     }
     
-    // Check Permissions
-    if (!await _checkPermissions()) {
-      _addLog('Missing Permissions');
+    if (!_useLan && !_useNearby) {
+      _addLog('No sync method enabled.');
       return;
     }
 
     _isSyncing = true;
-    _statusController.add('Starting Sync Service...');
+    _statusController.add('Starting Sync Service (${_role.name})...');
 
     if (_role == SyncRole.master) {
-      // Master: Start Advertising on BOTH channels
-      await _lanService.startAdvertising();
-      await _nearbyService.startAdvertising();
-       _addLog('Master Mode Active: Waiting for connections...');
+      // Master: Start Advertising based on selections
+      if (_useLan) await _lanService.startAdvertising();
+      if (_useNearby) await _nearbyService.startAdvertising();
+       _addLog('Master Mode Active.');
     } else {
-      // Worker: Attempt Hybrid Discovery
-      // Priority 1: LAN
-      _addLog('Checking LAN for Master...');
-      await _lanService.startDiscovery();
+      // Worker: Hybrid Discovery Logic
       
-      // We wait a bit to see if we find anything on LAN
-      // Simplified Hybrid Logic:
-      // Start LAN. After 5 seconds, if not connected (no device found), Start Nearby.
-      
-      _fallbackTimer?.cancel(); // Ensure clear before starting
-      _fallbackTimer = Timer(const Duration(seconds: 5), () async {
-        // Only start nearby if we haven't found a LAN device (checked via cancellation or flag)
-        if (_isSyncing) {
-           _addLog('No LAN Master found in 5s. Starting Nearby Discovery (Fallback)...');
-           await _nearbyService.startDiscovery();
-        }
-      });
+      if (_useLan && !_useNearby) {
+        // LAN Only
+        _addLog('Scanning LAN...');
+        await _lanService.startDiscovery();
+      } else if (!_useLan && _useNearby) {
+        // Nearby Only
+        _addLog('Scanning Nearby...');
+        await _nearbyService.startDiscovery();
+      } else {
+        // Both Enabled: Try LAN first, then Nearby
+         _addLog('Scanning LAN (Hybrid)...');
+        await _lanService.startDiscovery();
+        
+        _fallbackTimer?.cancel();
+        _fallbackTimer = Timer(const Duration(seconds: 5), () async {
+          if (_isSyncing) {
+             _addLog('Starting Nearby Discovery (Hybrid)...');
+             await _nearbyService.startDiscovery();
+          }
+        });
+      }
     }
   }
   
@@ -312,13 +389,13 @@ class SyncManager {
       }
 
       // 4. Connect & Send with Retry Logic
-      int maxRetries = 3;
+      int maxRetries = 10;
       bool success = false;
       
       for (int i = 0; i < maxRetries; i++) {
         if (i > 0) {
-           _statusController.add('Retry ${i + 1}/$maxRetries...');
-           await Future.delayed(const Duration(seconds: 2)); // Wait before retry
+           _statusController.add('Retry ${i + 1}/$maxRetries in 5s...');
+           await Future.delayed(const Duration(seconds: 5)); // Wait before retry (Fixed 5s or could be exponential)
         }
 
         try {
@@ -358,10 +435,16 @@ class SyncManager {
       }
       
       if (!success) {
-         _addLog('Sync failed after $maxRetries attempts. Restarting service in 2s...');
-         await Future.delayed(const Duration(seconds: 2));
-         await stopSync();
-         await startSync();
+         _addLog('Sync failed after $maxRetries attempts.');
+         if (_useLan || _useNearby) {
+           // Notify user of failure
+           NotificationService().showSyncFailedNotification(
+             'Failed to sync ${transactions.length} transactions after $maxRetries attempts.'
+           );
+         }
+         // Do not restart indefinitely loops to avoid battery drain, 
+         // wait for next trigger (e.g. new transaction or manual)
+         _isSyncing = false;
       }
 
     } catch (e) {

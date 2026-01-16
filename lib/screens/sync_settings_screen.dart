@@ -101,28 +101,45 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
             ),
           ),
 
-          // Actions
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.sync),
-                label: Text(_syncManager.role == SyncRole.master ? 'Start Server' : 'Sync Now'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                onPressed: () {
-                   _syncManager.startSync();
-                },
+          // Connection Method Selection
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Connection Method',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile(
+                    title: const Text('Direct Wi-Fi (Router)'),
+                    subtitle: const Text('Requires same Wi-Fi network'),
+                    secondary: const Icon(Icons.wifi),
+                    value: _syncManager.useLan,
+                    onChanged: (val) async {
+                      await _syncManager.setUseLan(val);
+                      setState(() {});
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('Nearby Share (No Internet)'),
+                    subtitle: const Text('Uses Bluetooth & Wi-Fi Direct'),
+                    secondary: const Icon(Icons.wifi_tethering),
+                    value: _syncManager.useNearby,
+                    onChanged: (val) async {
+                      await _syncManager.setUseNearby(val);
+                      setState(() {});
+                    },
+                  ),
+                ],
               ),
             ),
           ),
           
-
-          if (_syncManager.role == SyncRole.master)
+          if (_syncManager.role == SyncRole.master && (_syncManager.useLan || _syncManager.useNearby))
              Card(
                 color: Colors.green[50],
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -130,14 +147,15 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                       const Text('Server Running', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                       const Text('Server Active', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
                        const SizedBox(height: 5),
-                       SelectableText(
-                         'IP: ${_syncManager.lanService.serverIp ?? "Waiting..."}   Port: ${_syncManager.lanService.servicePort}',
-                         style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
-                       ),
+                       if (_syncManager.useLan)
+                         SelectableText(
+                           'LAN IP: ${_syncManager.lanService.serverIp ?? "Waiting..."} : ${_syncManager.lanService.servicePort}',
+                           style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                         ),
                        const SizedBox(height: 5),
-                       const Text('Keep screen on. Make sure Worker is on same Wi-Fi.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                       const Text('Listening for connections...', style: TextStyle(fontSize: 12, color: Colors.grey)),
                     ],
                   ),
                 ),

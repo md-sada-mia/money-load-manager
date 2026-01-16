@@ -3,12 +3,20 @@ import 'screens/home_screen.dart';
 import 'services/sms_listener.dart';
 import 'services/permissions_service.dart';
 import 'database/database_helper.dart';
+import 'services/notification_service.dart';
+import 'services/background_service_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize database
   await DatabaseHelper.instance.database;
+
+  // Initialize Notifications
+  await NotificationService().init();
+  
+  // Initialize Background Service Config
+  await initializeBackgroundService();
   
   runApp(const MyApp());
 }
@@ -177,7 +185,7 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Money Load Manager needs permission to read SMS, Contacts, and Location (for Sync) to function using Bluetooth/Wi-Fi.',
+                  'Money Load Manager needs permission to read SMS and Contacts to automatically track transactions.',
                   style: Theme.of(context).textTheme.bodyLarge,
                   textAlign: TextAlign.center,
                 ),

@@ -16,6 +16,7 @@ import '../services/transaction_service.dart';
 import '../services/sync_manager.dart';
 import '../widgets/draggable_support_button.dart';
 import '../utils/logo_helper.dart';
+import 'help_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -409,26 +410,43 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    dateLabel,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  if (!isToday)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        isSingleDay ? 'Past Date' : 'Custom Range',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  Row(
+                    children: [
+                      Text(
+                        dateLabel,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onPrimaryContainer,
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      if (!isToday)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            isSingleDay ? 'Past Date' : 'Custom Range',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.help_outline, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                    tooltip: 'Sync Help',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const HelpScreen()),
+                      );
+                    },
+                  ),
                 ],
               ),
               const SizedBox(height: 12),

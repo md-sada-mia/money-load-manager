@@ -200,10 +200,65 @@ class LanSyncService implements SyncProvider {
 
       await _discovery!.start();
       _isDiscovering = true;
-      _statusController.add('Scanning LAN...');
-      debugPrint('LAN: Started discovery service type $_serviceType');
+      _statusController.add('Scanning LAN (Service Type: $_serviceType)...');
+      debugPrint('LAN: Initializing BonsoirDiscovery...');
+      
+      _discovery = BonsoirDiscovery(type: _serviceType);
+      await _discovery!.initialize(); 
+      debugPrint('LAN: BonsoirDiscovery initialized. Starting...');
+      
+      _discovery!.eventStream!.listen((event) {
+        final dynamicEvent = event as dynamic;
+        final String typeStr = dynamicEvent.runtimeType.toString();
+        debugPrint('LAN Discovery Event: $typeStr - $event');
+        
+        if (typeStr.contains('Found') || typeStr.contains('Resolved')) {
+          if (event.service == null) return;
+          final service = event.service!;
+          debugPrint('LAN Service Found/Resolved: ${service.name}');
+          
+          // Only proceed if we have enough info (Resolved)
+          if (typeStr.contains('Resolved')) {
+              _statusController.add('Resolved Service: ${service.name}');
+              debugPrint('LAN: Resolved service ${service.name} at ${service.toJson()}');
+              
+              String? ip;
+              try {
+                // Priority 1: Check attributes (inserted by us)
+                if (service.attributes.containsKey('ip')) {
+                   ip = service.attributes['ip']?.toString();
+                }
+                
+                // Priority 2: Standard JSON
+                if (ip == null || ip == '0.0.0.0') {
+                   final json = service.toJson();
+                   ip = json['host'] ?? json['ip']; 
+                }
+              } catch (_) {}
+
+              if (ip != null) {
+                 _statusController.add('Found IP: $ip for ${service.name}');
+                 final device = SyncDevice(
+                    id: service.name, 
+                    name: service.name,
+                    ipAddress: ip,
+                    servicePort: service.port,
+                  );
+                  _discoveredDevicesController.add(device);
+              } else {
+                 _statusController.add('Could not resolve IP for ${service.name}');
+              }
+          }
+        }
+      });
+
+      await _discovery!.start();
+      _isDiscovering = true;
+      _statusController.add('Scanning started. Waiting for broadcasts...');
+      debugPrint('LAN: Discovery started successfully.');
     } catch (e) {
       _statusController.add('Error discovering: $e');
+      debugPrint('LAN Discovery Error: $e');
     }
   }
 
