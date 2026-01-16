@@ -213,6 +213,18 @@ class SyncManager {
 
   Timer? _fallbackTimer;
 
+    // Persistent Last Known Master (In-Memory for session, or prefs for persistence if needed)
+  String? _lastKnownMasterIp;
+  int? _lastKnownMasterPort;
+  
+  void _memorizeMasterConnection(String ip, int port) {
+     if (_lastKnownMasterIp != ip) {
+        _addLog('Memorized Master Connection: $ip:$port');
+        _lastKnownMasterIp = ip;
+        _lastKnownMasterPort = port;
+     }
+  }
+
   Future<void> startSync() async {
     if (_isSyncing) {
        _addLog('Sync Service restarting...');
@@ -235,6 +247,31 @@ class SyncManager {
     } else {
       // Worker: Hybrid Discovery Logic
       
+      // OPTIMIZATION: Try Last Known Connection First!
+      if (_useLan && _lastKnownMasterIp != null && _lastKnownMasterPort != null) {
+          _addLog('Trying last known Master: $_lastKnownMasterIp...');
+          final isReused = await _lanService.connect(_lastKnownMasterIp!);
+          if (isReused) {
+              _addLog('Reconnected to $_lastKnownMasterIp! Syncing...');
+              // Create a temporary "device" object to pass to sync logic
+              final device = SyncDevice(
+                  id: 'reused_master',
+                  name: 'Reused Master',
+                  ipAddress: _lastKnownMasterIp,
+                  servicePort: _lastKnownMasterPort ?? 4040
+              );
+              // Trigger sync directly
+              await _syncDataWithMaster(device, _lanService);
+              return; // If successful (or even if sync attempted), skip discovery this time?
+              // Wait, if _syncDataWithMaster fails inside, we might want to fall back to discovery?
+              // But _syncDataWithMaster has retries. If it fails there, it means the IP is probably gone or retries exhausted.
+              // So we should probably let the user know or fall back to discovery ONLY if the connection CHECK failed.
+          } else {
+              _addLog('Last known Master $_lastKnownMasterIp unreachable. Starting detailed scan...');
+              // Fall through to standard discovery
+          }
+      }
+
       if (_useLan && !_useNearby) {
         // LAN Only
         _addLog('Scanning LAN...');
@@ -448,6 +485,11 @@ class SyncManager {
             if (ids.isNotEmpty) {
                await DatabaseHelper.instance.markTransactionsAsSynced(ids);
                _addLog('Marked ${ids.length} transactions as synced.');
+            }
+            
+            // Success: Memorize this connection
+            if (provider is LanSyncService) {
+                _memorizeMasterConnection(targetAddress, target.servicePort ?? 4040);
             }
 
             break; // Success! exit loop

@@ -159,7 +159,10 @@ class LanSyncService implements SyncProvider {
 
   @override
   Future<void> startDiscovery() async {
-    if (_isDiscovering) return;
+    // Force cleanup of any existing instance
+    await stopDiscovery();
+    
+    if (_isDiscovering) return; // Should be false now, but safe check
     
     // Acquire Lock for Discovery too
     try {
@@ -236,6 +239,7 @@ class LanSyncService implements SyncProvider {
   @override
   Future<void> stopDiscovery() async {
     await _discovery?.stop();
+    _discovery = null; // Ensure we clear the reference
     
     try {
       await _msgChannel.invokeMethod('releaseMulticastLock');
