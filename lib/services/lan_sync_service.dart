@@ -66,8 +66,13 @@ class LanSyncService implements SyncProvider {
   String? get serverIp => _currentIp;
   
   String? _customServiceName;
-  void setup(String name) {
+  
+  // Callback to check if sync manager is still syncing
+  bool Function()? _shouldContinueDiscovery;
+  
+  void setup(String name, {bool Function()? shouldContinueDiscovery}) {
     _customServiceName = name;
+    _shouldContinueDiscovery = shouldContinueDiscovery;
   }
 
 
@@ -157,12 +162,12 @@ class LanSyncService implements SyncProvider {
     _statusController.add('Stopped advertising');
   }
 
+  StreamSubscription? _discoverySubscription;
+
   @override
   Future<void> startDiscovery() async {
     // Force cleanup of any existing instance
     await stopDiscovery();
-    
-    if (_isDiscovering) return; // Should be false now, but safe check
     
     // Acquire Lock for Discovery too
     try {
@@ -172,80 +177,90 @@ class LanSyncService implements SyncProvider {
     try {
       _discovery = BonsoirDiscovery(type: _serviceType);
       await _discovery!.initialize(); 
+      
+      // GUARD: If stopped while initializing
+      if (_discovery == null) {
+         debugPrint('LAN: Discovery stopped during initialization.');
+         return;
+      }
+
       debugPrint('LAN: BonsoirDiscovery initialized. Starting...');
       
-      _discovery!.eventStream!.listen((event) {
-        final dynamicEvent = event as dynamic;
-        final String typeStr = dynamicEvent.runtimeType.toString();
-        // debugPrint('LAN Discovery Event: $typeStr - $event'); // Reduce noise
-        
-        if (typeStr.contains('Found') || typeStr.contains('Resolved')) {
-          if (event.service == null) return;
-          final service = event.service!;
+      _discoverySubscription = _discovery!.eventStream!.listen((event) {
+        // CRITICAL GUARDS: Stop processing if discovery is stopped or sync is not active
+        if (_discovery == null) return;
+        if (!_isDiscovering) return;
+        if (_shouldContinueDiscovery != null && !_shouldContinueDiscovery!()) return;
+
+        if (event is BonsoirDiscoveryServiceFoundEvent) {
+          debugPrint('LAN: Service Found: ${event.service?.name}');
+          event.service!.resolve(_discovery!.serviceResolver);
+        } else if (event is BonsoirDiscoveryServiceResolvedEvent) {
+          debugPrint('LAN: Service Resolved: ${event.service?.name}');
+          final service = event.service as BonsoirService;
+          final attributes = service.attributes ?? {};
           
-          if (typeStr.contains('Found')) {
-             debugPrint('LAN: Service Found: ${service.name}. Waiting for Resolution...');
-             // On some platforms/versions we might need to explicitly resolve, 
-             // but usually Bonsoir does it automatically. 
-             // If we get "Found" but not "Resolved", it means resolution failed.
-             service.resolve(_discovery!.serviceResolver);
+          if (attributes['type'] == 'master') {
+             String ip = attributes['ip'] ?? service.host ?? '';
+             final device = SyncDevice(
+               id: service.name,
+               name: service.name,
+               ipAddress: ip,
+               servicePort: service.port,
+             );
+             _discoveredDevicesController.add(device);
           }
-
-          // Only proceed if we have enough info (Resolved)
-          if (typeStr.contains('Resolved')) {
-              _statusController.add('Resolved Service: ${service.name}');
-              debugPrint('LAN: Resolved service ${service.name} at ${service.toJson()}');
-              
-              String? ip;
-              try {
-                // Priority 1: Check attributes (inserted by us)
-                if (service.attributes.containsKey('ip')) {
-                   ip = service.attributes['ip']?.toString();
-                }
-                
-                // Priority 2: Standard JSON
-                if (ip == null || ip == '0.0.0.0') {
-                   final json = service.toJson();
-                   ip = json['host'] ?? json['ip']; 
-                }
-              } catch (_) {}
-
-              if (ip != null) {
-                 _statusController.add('Found IP: $ip for ${service.name}');
-                 final device = SyncDevice(
-                    id: service.name, 
-                    name: service.name,
-                    ipAddress: ip,
-                    servicePort: service.port,
-                  );
-                  _discoveredDevicesController.add(device);
-              } else {
-                 _statusController.add('Could not resolve IP for ${service.name}');
-              }
-          }
+        } else if (event is BonsoirDiscoveryServiceLostEvent) {
+          debugPrint('LAN: Service Lost: ${event.service?.name}');
         }
       });
 
+      // GUARD: If stopped while setting up listener
+      if (_discovery == null) {
+         debugPrint('LAN: Discovery aborted (stopped before start).');
+         await _discoverySubscription?.cancel();
+         return;
+      }
+
       await _discovery!.start();
+
+      // FIX: Check if stopped during start()
+      if (_discovery == null) {
+          debugPrint('LAN: Discovery stopped during start(). Aborting flag update.');
+          return;
+      }
+
       _isDiscovering = true;
       _statusController.add('Scanning started. Waiting for broadcasts...');
-      debugPrint('LAN: Discovery started successfully.');
+      debugPrint('LAN: Discovery started successfully. Instance: ${_discovery.hashCode}');
     } catch (e) {
       _statusController.add('Error discovering: $e');
       debugPrint('LAN Discovery Error: $e');
+      await stopDiscovery(); // Ensure cleanup on error
     }
   }
 
   @override
   Future<void> stopDiscovery() async {
-    await _discovery?.stop();
-    _discovery = null; // Ensure we clear the reference
+    // Set flag FIRST to stop listener from processing new events
+    _isDiscovering = false;
     
+    // Capture and clear immediately to prevent race in startDiscovery
+    final discoveryToStop = _discovery;
+    _discovery = null;
+    
+    // Cancel subscription
+    await _discoverySubscription?.cancel();
+    _discoverySubscription = null;
+    
+    // Stop Bonsoir discovery
+    await discoveryToStop?.stop();
+    
+    // Release multicast lock
     try {
       await _msgChannel.invokeMethod('releaseMulticastLock');
     } catch (_) {}
     
-    _isDiscovering = false;
     _statusController.add('Stopped scanning');
   }
 

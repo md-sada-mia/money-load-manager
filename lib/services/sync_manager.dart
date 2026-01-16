@@ -29,6 +29,7 @@ class SyncManager {
   bool get isSyncing => _isSyncing;
   String? _deviceId;
   String? _deviceName;
+  bool _isInitialized = false;
 
   final _statusController = StreamController<String>.broadcast();
   Stream<String> get statusStream => _statusController.stream;
@@ -47,6 +48,15 @@ class SyncManager {
   bool get useNearby => _useNearby;
 
   Future<void> init() async {
+    // If already initialized, just reload prefs without restarting
+    if (_isInitialized) {
+      final prefs = await SharedPreferences.getInstance();
+      _role = SyncRole.values[prefs.getInt('sync_role') ?? 1];
+      _useLan = prefs.getBool('use_lan') ?? false;
+      _useNearby = prefs.getBool('use_nearby') ?? false;
+      return;
+    }
+    
     final prefs = await SharedPreferences.getInstance();
     final roleIndex = prefs.getInt('sync_role') ?? 1; // Default Worker
     _role = SyncRole.values[roleIndex];
@@ -71,8 +81,14 @@ class SyncManager {
        final safeId = _deviceId!.replaceAll(RegExp(r'[^a-zA-Z0-9-]'), '');
        // Keep it short-ish
        final shortId = safeId.length > 6 ? safeId.substring(0, 6) : safeId;
-       _lanService.setup('MoneyLoadMaster-$shortId');
+       _lanService.setup(
+         'MoneyLoadMaster-$shortId',
+         shouldContinueDiscovery: () => _isSyncing, // Callback to check sync status
+       );
     }
+
+    // Setup Nearby service callback
+    _nearbyService.setup(shouldContinueDiscovery: () => _isSyncing);
 
     // specific listeners for providers
     _lanService.dataReceived.listen(_handleDataReceived);
@@ -98,7 +114,10 @@ class SyncManager {
       }
     });
 
-    // Auto-start if enabled
+    // Mark as initialized
+    _isInitialized = true;
+    
+    // Auto-start ONLY on first initialization if enabled
     if (_useLan || _useNearby) {
       // Small delay to ensure everything is ready
       Future.delayed(const Duration(seconds: 2), () {
@@ -212,8 +231,9 @@ class SyncManager {
   SyncRole get role => _role;
 
   Timer? _fallbackTimer;
+  Timer? _discoveryTimeoutTimer; // New: Timer to limit scanning duration
 
-    // Persistent Last Known Master (In-Memory for session, or prefs for persistence if needed)
+  // Persistent Last Known Master (In-Memory for session, or prefs for persistence if needed)
   String? _lastKnownMasterIp;
   int? _lastKnownMasterPort;
   
@@ -238,6 +258,17 @@ class SyncManager {
 
     _isSyncing = true;
     _statusController.add('Starting Sync Service (${_role.name})...');
+    
+    // Set Discovery Timeout (Worker Only)
+    if (_role == SyncRole.worker) {
+        _discoveryTimeoutTimer?.cancel();
+        _discoveryTimeoutTimer = Timer(const Duration(seconds: 60), () async {
+            if (_isSyncing && !_isBusySyncing) {
+                _addLog('Discovery timeout: No Master found.');
+                await stopSync();
+            }
+        });
+    }
 
     if (_role == SyncRole.master) {
       // Master: Start Advertising based on selections
@@ -308,6 +339,7 @@ class SyncManager {
        name: 'Manual LAN Device', 
        ipAddress: ipAddress,
        servicePort: 4040,
+       // Provide minimal info
      );
      // Use LanSyncService for manual IP
      _handleDiscoveredDevice(device, _lanService);
@@ -316,6 +348,10 @@ class SyncManager {
   Future<void> stopSync() async {
     _fallbackTimer?.cancel();
     _fallbackTimer = null;
+    
+    _discoveryTimeoutTimer?.cancel();
+    _discoveryTimeoutTimer = null;
+
     await _lanService.stopAdvertising();
     await _lanService.stopDiscovery();
     await _lanService.disconnect(); // Explicit disconnect
@@ -492,6 +528,12 @@ class SyncManager {
                 _memorizeMasterConnection(targetAddress, target.servicePort ?? 4040);
             }
 
+            // AUTO-STOP: One-Shot Sync Logic (Worker only)
+            if (_role == SyncRole.worker) {
+               _addLog('Sync Batch Complete. Stopping Service (Idle Mode).');
+               await stopSync();
+            }
+
             break; // Success! exit loop
         } catch (e) {
             _statusController.add('Attempt ${i + 1} failed: $e');
@@ -508,7 +550,7 @@ class SyncManager {
          }
          // Do not restart indefinitely loops to avoid battery drain, 
          // wait for next trigger (e.g. new transaction or manual)
-         _isSyncing = false;
+         await stopSync();
       }
 
     } catch (e) {

@@ -16,6 +16,15 @@ class NearbySyncService implements SyncProvider {
   
   // Map endpointId -> SyncDeivce
   final Map<String, SyncDevice> _knownEndpoints = {};
+  
+  bool _isDiscovering = false;
+  
+  // Callback to check if sync manager is still syncing
+  bool Function()? _shouldContinueDiscovery;
+  
+  void setup({bool Function()? shouldContinueDiscovery}) {
+    _shouldContinueDiscovery = shouldContinueDiscovery;
+  }
 
   @override
   Stream<SyncDevice> get discoveredDevices => _discoveredDevicesController.stream;
@@ -61,6 +70,17 @@ class NearbySyncService implements SyncProvider {
         _strategy,
         serviceId: 'com.money_load_manager.money_load_manager', // Explicit Service ID
         onEndpointFound: (id, name, serviceId) {
+          // Guard: Check if we should still process discovery events
+          if (!_isDiscovering) {
+            debugPrint('Nearby: Ignoring endpoint event - discovery flag is false');
+            return;
+          }
+          
+          if (_shouldContinueDiscovery != null && !_shouldContinueDiscovery!()) {
+            debugPrint('Nearby: Ignoring endpoint event - sync manager not syncing');
+            return;
+          }
+          
           _statusController.add('Nearby: Found endpoint $name ($id)');
           final device = SyncDevice(id: id, name: name, endpointId: id);
           _knownEndpoints[id] = device;
@@ -70,7 +90,10 @@ class NearbySyncService implements SyncProvider {
           _knownEndpoints.remove(id);
         },
       );
-      if (a) _statusController.add('Discovering Nearby');
+      if (a) {
+        _isDiscovering = true;
+        _statusController.add('Discovering Nearby');
+      }
     } catch (e) {
       // 8002 = STATUS_ALREADY_DISCOVERING. This is fine, just means we are already running.
       if (e.toString().contains('8002') || e.toString().contains('ALREADY_DISCOVERING')) {
@@ -84,8 +107,10 @@ class NearbySyncService implements SyncProvider {
 
   @override
   Future<void> stopDiscovery() async {
+    _isDiscovering = false;
     await Nearby().stopDiscovery();
     _statusController.add('Stopped discovering Nearby');
+    debugPrint('Nearby: Discovery stopped.');
   }
 
   void _onConnectionInitiated(String id, ConnectionInfo info) async {
