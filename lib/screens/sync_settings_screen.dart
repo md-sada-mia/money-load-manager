@@ -15,6 +15,8 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
   final List<String> _logs = [];
   bool _isInit = false;
 
+  final TextEditingController _ipController = TextEditingController();
+  
   @override
   void initState() {
     super.initState();
@@ -27,13 +29,15 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
     _syncManager.statusStream.listen((status) {
       if (mounted) {
         setState(() {
-          _logs.insert(0, "${DateTime.now().hour}:${DateTime.now().minute}:${DateTime.now().second} - $status");
-          if (_logs.length > 50) _logs.removeLast();
+          _logs.insert(0, status); // Stream now sends full formatted log
+          if (_logs.length > 100) _logs.removeLast();
         });
       }
     });
 
+    // Restore existing logs
     setState(() {
+      _logs.addAll(_syncManager.logs);
       _isInit = true;
     });
   }
@@ -124,6 +128,35 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
                padding: const EdgeInsets.all(8.0),
                child: Text('Master Mode: Keep this screen open to receive data.', style: TextStyle(color: Colors.grey[600]),),
             ),
+            
+          // Manual LAN Connect (Worker Only)
+          if (_syncManager.role == SyncRole.worker)
+             Padding(
+               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+               child: Row(
+                 children: [
+                   Expanded(
+                     child: TextField(
+                       controller: _ipController,
+                       decoration: const InputDecoration(
+                         labelText: 'Manual IP Connect (e.g. 192.168.0.101)',
+                         border: OutlineInputBorder(),
+                         isDense: true,
+                       ),
+                     ),
+                   ),
+                   const SizedBox(width: 8),
+                   ElevatedButton(
+                     onPressed: () {
+                       if (_ipController.text.isNotEmpty) {
+                         _syncManager.manualConnect(_ipController.text.trim());
+                       }
+                     },
+                     child: const Text('Connect'),
+                   ),
+                 ],
+               ),
+             ),
 
 
           const SizedBox(height: 20),

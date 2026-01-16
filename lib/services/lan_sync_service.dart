@@ -4,11 +4,26 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:bonsoir/bonsoir.dart';
 import 'package:flutter/foundation.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'sync_provider.dart';
 import '../models/sync_models.dart';
 
 class LanSyncService implements SyncProvider {
+  // ... existing code ...
+
+  Future<String?> _getLocalIpAddress() async {
+    try {
+      for (var interface in await NetworkInterface.list()) {
+        for (var addr in interface.addresses) {
+            if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback && !addr.isLinkLocal) {
+              return addr.address;
+            }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
   static const String _serviceType = '_moneyload._tcp';
   static const int _port = 4040;
   
@@ -42,20 +57,28 @@ class LanSyncService implements SyncProvider {
       _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, _port);
       _serverSocket!.listen(_handleIncomingConnection);
       
-      // 2. Start mDNS Broadcast
+      // 2. Get Local IP
+      String? ip = await NetworkInfo().getWifiIP();
+      ip ??= await _getLocalIpAddress(); // Fallback
+      
+      _statusController.add('Advertising on LAN ($ip)');
+      
+      // 3. Start mDNS Broadcast
       BonsoirService service = BonsoirService(
         name: 'MoneyLoadMaster-${const Uuid().v4().substring(0, 4)}',
         type: _serviceType,
         port: _port,
-        attributes: {'type': 'master'},
+        attributes: {
+          'type': 'master',
+          'ip': ip ?? '0.0.0.0', // Explicitly share IP
+        },
       );
       
       _broadcast = BonsoirBroadcast(service: service);
       await _broadcast!.start();
       
       _isAdvertising = true;
-      _statusController.add('Advertising on LAN');
-      debugPrint('LAN: Started advertising on port $_port');
+      debugPrint('LAN: Started advertising on port $_port with IP $ip');
     } catch (e) {
       _statusController.add('Error advertising: $e');
       debugPrint('LAN Error advertising: $e');
@@ -76,7 +99,7 @@ class LanSyncService implements SyncProvider {
 
     try {
       _discovery = BonsoirDiscovery(type: _serviceType);
-      await _discovery!.start();
+      // await _discovery!.start(); // Moved to after listener setup
       
       _discovery!.eventStream!.listen((event) {
         // Workaround: Use dynamic check as class names vary by version
@@ -93,16 +116,22 @@ class LanSyncService implements SyncProvider {
               
               String? ip;
               try {
-                // Try to grab IP from JSON if standard fields exist
-                final json = service.toJson();
-                ip = json['host'] ?? json['ip']; 
-                // Some implementations might put it in attributes
+                // Priority 1: Check attributes (inserted by us)
+                if (service.attributes.containsKey('ip')) {
+                   ip = service.attributes['ip']?.toString();
+                }
+                
+                // Priority 2: Standard JSON
+                if (ip == null || ip == '0.0.0.0') {
+                   final json = service.toJson();
+                   ip = json['host'] ?? json['ip']; 
+                }
               } catch (_) {}
 
               final device = SyncDevice(
                 id: service.name, 
                 name: service.name,
-                ipAddress: ip ?? service.attributes['host']?.toString(), // Probing for IP
+                ipAddress: ip,
                 servicePort: service.port,
               );
               _discoveredDevicesController.add(device);
@@ -113,6 +142,7 @@ class LanSyncService implements SyncProvider {
       await _discovery!.start();
       _isDiscovering = true;
       _statusController.add('Scanning LAN...');
+      debugPrint('LAN: Started discovery service type $_serviceType');
     } catch (e) {
       _statusController.add('Error discovering: $e');
     }

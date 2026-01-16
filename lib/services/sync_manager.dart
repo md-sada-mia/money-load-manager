@@ -27,6 +27,11 @@ class SyncManager {
 
   final _statusController = StreamController<String>.broadcast();
   Stream<String> get statusStream => _statusController.stream;
+  
+  // Persistent Logs
+  final List<String> _logs = [];
+  List<String> get logs => List.unmodifiable(_logs);
+
 
   int _sdkInt = 0;
 
@@ -121,7 +126,7 @@ class SyncManager {
     
     // Check Permissions
     if (!await _checkPermissions()) {
-      _statusController.add('Missing Permissions');
+      _addLog('Missing Permissions');
       return;
     }
 
@@ -132,11 +137,11 @@ class SyncManager {
       // Master: Start Advertising on BOTH channels
       await _lanService.startAdvertising();
       await _nearbyService.startAdvertising();
-       _statusController.add('Master Mode Active: Waiting for connections...');
+       _addLog('Master Mode Active: Waiting for connections...');
     } else {
       // Worker: Attempt Hybrid Discovery
       // Priority 1: LAN
-      _statusController.add('Checking LAN for Master...');
+      _addLog('Checking LAN for Master...');
       await _lanService.startDiscovery();
       
       // We wait a bit to see if we find anything on LAN
@@ -147,11 +152,28 @@ class SyncManager {
       _fallbackTimer = Timer(const Duration(seconds: 5), () async {
         // Only start nearby if we haven't found a LAN device (checked via cancellation or flag)
         if (_isSyncing) {
-           _statusController.add('No LAN Master found in 5s. Starting Nearby Discovery (Fallback)...');
+           _addLog('No LAN Master found in 5s. Starting Nearby Discovery (Fallback)...');
            await _nearbyService.startDiscovery();
         }
       });
     }
+  }
+  
+  // Manual Connect for Worker
+  Future<void> manualConnect(String ipAddress) async {
+     if (_role != SyncRole.worker) {
+       _addLog('Manual connect only available for Worker');
+       return;
+     }
+     _addLog('Manual Connection requested to $ipAddress...');
+     final device = SyncDevice(
+       id: 'manual_lan', 
+       name: 'Manual LAN Device', 
+       ipAddress: ipAddress,
+       servicePort: 4040,
+     );
+     // Use LanSyncService for manual IP
+     _handleDiscoveredDevice(device, _lanService);
   }
 
   Future<void> stopSync() async {
@@ -159,11 +181,24 @@ class SyncManager {
     _fallbackTimer = null;
     await _lanService.stopAdvertising();
     await _lanService.stopDiscovery();
+    await _lanService.disconnect(); // Explicit disconnect
+
     await _nearbyService.stopAdvertising();
     await _nearbyService.stopDiscovery();
+    await _nearbyService.disconnect(); // Explicit disconnect
+    
     _isSyncing = false;
-    _statusController.add('Sync Stopped');
+    _addLog('Sync Stopped');
   }
+
+  // Helper to add logs internally and to stream
+  void _addLog(String message) {
+     final logMsg = "${DateTime.now().hour}:${DateTime.now().minute}:${DateTime.now().second} - $message";
+     _logs.insert(0, logMsg);
+     if (_logs.length > 100) _logs.removeLast();
+     _statusController.add(message);
+  }
+
 
 
 
@@ -172,7 +207,7 @@ class SyncManager {
 
   // Handle incoming data (Master logic primarily)
   void _handleDataReceived(SyncPacket packet) async {
-    _statusController.add('Receiving data from ${packet.deviceName}...');
+    _addLog('Receiving data from ${packet.deviceName}...');
     
     try {
       // 1. Verify Device Authorization
@@ -190,43 +225,47 @@ class SyncManager {
       // 3. Update Sync Log
       await DatabaseHelper.instance.updateSyncLog(packet.deviceId, packet.deviceName, DateTime.now().millisecondsSinceEpoch);
       
-      _statusController.add('Synced: $newCount new transactions from ${packet.deviceName}');
+      _addLog('Synced: $newCount new transactions from ${packet.deviceName}');
       
       // Notify UI
       _dataSyncedController.add(null);
       
     } catch (e) {
-      _statusController.add('Error processing sync data: $e');
+      _addLog('Error processing sync data: $e');
       debugPrint('Sync Error: $e');
     }
   }
 
+  // Guard to prevent parallel syncs
+  bool _isBusySyncing = false;
+
   // Worker Logic: Found a Master, send data!
   void _handleDiscoveredDevice(SyncDevice device, SyncProvider provider) async {
+    // If multiple discovery events come in, ignore if busy
+    if (_isBusySyncing) return;
+
     // If we found a device via LAN, cancel the Nearby fallback
     if (provider is LanSyncService) {
        _statusController.add('LAN Master Found: ${device.name}. Cancelling Nearby Fallback.');
        _fallbackTimer?.cancel();
     }
     
-    _statusController.add('Found Master: ${device.name}. Connecting...');
-    
-    // Stop discovery once found to save resources (and prevent double sync)
-    // await stopSync(); // Don't stop fully, just discovery? 
-    // For now, keep it simple: Just try to send.
+      _addLog('Found Master: ${device.name}. Connecting...');
     
     await _syncDataWithMaster(device, provider);
   }
 
   Future<void> _syncDataWithMaster(SyncDevice target, SyncProvider provider) async {
+    if (_isBusySyncing) return;
+    _isBusySyncing = true;
+
     try {
-      // 1. Fetch ALL transactions (or just new ones based on last sync time?)
-      // For simplicity/robustness in offline MVP: Send ALL. 
-      // Receiver (DatabaseHelper) handles deduplication efficiently.
+      // 1. Fetch ALL transactions
       final transactions = await DatabaseHelper.instance.getAllTransactions();
       
       if (transactions.isEmpty) {
          _statusController.add('No transactions to sync.');
+         _isBusySyncing = false;
          return;
       }
       
@@ -244,39 +283,64 @@ class SyncManager {
       String targetAddress;
       if (provider is LanSyncService) {
         if (target.ipAddress == null || target.ipAddress!.isEmpty) {
-          _statusController.add('Error: Master IP not found for LAN sync.');
+          _addLog('Error: Master IP not found for LAN sync.');
+          _isBusySyncing = false;
           return;
         }
         targetAddress = target.ipAddress!;
-        _statusController.add('Connecting to Master at $targetAddress...');
+        _addLog('Connecting to Master at $targetAddress...');
       } else {
         targetAddress = target.id;
-        _statusController.add('Connecting to Master ID $targetAddress...');
+        _addLog('Connecting to Master ID $targetAddress...');
       }
 
-      // 4. Connect First (with timeout)
-      bool connected = await provider.connect(targetAddress).timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => false,
-      );
+      // 4. Connect & Send with Retry Logic
+      int maxRetries = 3;
+      bool success = false;
       
-      if (!connected) {
-         _statusController.add('Failed to connect to Master ($targetAddress).');
-         return;
+      for (int i = 0; i < maxRetries; i++) {
+        if (i > 0) {
+           _statusController.add('Retry ${i + 1}/$maxRetries...');
+           await Future.delayed(const Duration(seconds: 2)); // Wait before retry
+        }
+
+        try {
+            // Connect
+            bool connected = await provider.connect(targetAddress).timeout(
+              const Duration(seconds: 5),
+              onTimeout: () => false,
+            );
+            
+            if (!connected) {
+               _statusController.add('Failed to connect ($targetAddress).');
+               continue; // Try next retry
+            }
+
+            // Send
+            await provider.sendData(targetAddress, packet).timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                throw TimeoutException('Send timed out');
+              },
+            );
+            
+            _statusController.add('Sync Complete!');
+            success = true;
+            break; // Success! exit loop
+        } catch (e) {
+            _statusController.add('Attempt ${i + 1} failed: $e');
+        }
+      }
+      
+      if (!success) {
+         _statusController.add('Sync Aborted after $maxRetries failed attempts.');
       }
 
-      // 5. Send (with timeout)
-      await provider.sendData(targetAddress, packet).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Send timed out');
-        },
-      );
-      
-      _statusController.add('Sync Complete!');
     } catch (e) {
       _statusController.add('Sync Failed: $e');
       debugPrint('Sync Failed: $e');
+    } finally {
+      _isBusySyncing = false;
     }
   }
 }
