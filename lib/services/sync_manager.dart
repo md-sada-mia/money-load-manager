@@ -122,7 +122,16 @@ class SyncManager {
   Timer? _fallbackTimer;
 
   Future<void> startSync() async {
-    if (_isSyncing) return;
+    if (_isSyncing) {
+      if (_role == SyncRole.worker) {
+        _addLog('Restarting Sync Process...');
+        await stopSync();
+        // Proceed to start logic below (since stopSync sets _isSyncing = false)
+      } else {
+        _addLog('Sync Service already running.');
+        return;
+      }
+    }
     
     // Check Permissions
     if (!await _checkPermissions()) {
@@ -333,7 +342,10 @@ class SyncManager {
       }
       
       if (!success) {
-         _statusController.add('Sync Aborted after $maxRetries failed attempts.');
+         _addLog('Sync failed after $maxRetries attempts. Restarting service in 2s...');
+         await Future.delayed(const Duration(seconds: 2));
+         await stopSync();
+         await startSync();
       }
 
     } catch (e) {
