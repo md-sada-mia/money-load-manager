@@ -17,11 +17,11 @@ class ContactService {
     try {
       // Use permission_handler to avoid request code collision with other plugins
       if (!await Permission.contacts.isGranted) {
-        final status = await Permission.contacts.request();
-        if (!status.isGranted) {
-          _cachedNormalizedNumbers = [];
-          return;
-        }
+        // We do NOT request here anymore to avoid 'Reply already submitted' crash.
+        // Permissions should be requested in main.dart
+        print('Contacts permission not granted. Skipping load.');
+        _cachedNormalizedNumbers = [];
+        return;
       }
 
       final contacts = await FlutterContacts.getContacts(withProperties: true);

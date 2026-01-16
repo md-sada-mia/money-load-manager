@@ -71,13 +71,18 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
   }
 
   Future<void> _checkPermissions() async {
-    final hasPermissions = await PermissionsService.hasSmsPermissions();
+    final sms = await PermissionsService.hasSmsPermissions();
+    final contacts = await PermissionsService.hasContactsPermissions();
+    
+    // Check if ALL are granted
+    final allGranted = sms && contacts;
+    
     setState(() {
-      _hasPermissions = hasPermissions;
+      _hasPermissions = allGranted;
       _isCheckingPermissions = false;
     });
 
-    if (hasPermissions) {
+    if (allGranted) {
       await _initializeApp();
     }
   }
@@ -85,7 +90,7 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
   Future<void> _requestPermissions() async {
     setState(() => _isInitializing = true);
     
-    final granted = await PermissionsService.requestSmsPermissions();
+    final granted = await PermissionsService.requestRequiredPermissions();
     
     if (granted) {
       await _initializeApp();
@@ -172,7 +177,7 @@ class _PermissionWrapperState extends State<PermissionWrapper> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Money Load Manager needs permission to read SMS messages to automatically detect and track your transactions.',
+                  'Money Load Manager needs permission to read SMS, Contacts, and Location (for Sync) to function using Bluetooth/Wi-Fi.',
                   style: Theme.of(context).textTheme.bodyLarge,
                   textAlign: TextAlign.center,
                 ),

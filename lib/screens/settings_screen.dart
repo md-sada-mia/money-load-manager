@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'training_screen.dart';
 import 'sms_tester_screen.dart';
+import 'sync_settings_screen.dart';
 import '../services/sms_listener.dart';
 import '../database/database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -110,6 +111,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSection(
             'Data Management',
             [
+              ListTile(
+                leading: const Icon(Icons.sync),
+                title: const Text('Data Synchronization'),
+                subtitle: const Text('Sync with other devices (Offline)'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SyncSettingsScreen()),
+                  );
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('Pattern Info'),

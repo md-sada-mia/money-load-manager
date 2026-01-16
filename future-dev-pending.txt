@@ -4,3 +4,9 @@ i want parse phone any kind of notification and check this matched with patterrn
 
 whatever you use package please read the official docs and update i dont need any error. 
 
+
+
+----------------
+
+
+when i try give  location permission as worker a device for data syncronization location permission modal open when slection permission the app closed/crashed. but another device is ok.

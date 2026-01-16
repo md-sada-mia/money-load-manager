@@ -13,6 +13,7 @@ import 'settings_screen.dart';
 import '../widgets/transaction_icon.dart';
 import '../widgets/dashboard_config_dialog.dart';
 import '../services/transaction_service.dart';
+import '../services/sync_manager.dart';
 import '../widgets/draggable_support_button.dart';
 import '../utils/logo_helper.dart';
 
@@ -53,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
     
     _loadCustomizationSettings();
     _subscribeToTransactions();
+    _subscribeToSync();
     _loadData();
   }
   
@@ -88,9 +90,23 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // Listen for Sync updates
+  late StreamSubscription<void> _syncSubscription;
+  void _subscribeToSync() {
+    _syncSubscription = SyncManager().onDataSynced.listen((_) {
+      if (mounted) {
+        _loadData();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dashboard updated from Sync')),
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
     _transactionSubscription.cancel();
+    _syncSubscription.cancel();
     super.dispose();
   }
 

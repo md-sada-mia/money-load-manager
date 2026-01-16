@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 5, // Upgraded to support nullable transaction_type
+      version: 7, // Upgraded to ensure sync tables exist
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -67,6 +67,24 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_transactions_timestamp ON transactions(timestamp)');
     await db.execute('CREATE INDEX idx_transactions_type ON transactions(type)');
     await db.execute('CREATE INDEX idx_transactions_direction ON transactions(direction)');
+    
+    // Sync tables (Added in v6/v7)
+    await db.execute('''
+      CREATE TABLE authorized_devices (
+        device_id TEXT PRIMARY KEY,
+        device_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'trusted',
+        pair_date INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE sync_log (
+        device_id TEXT PRIMARY KEY,
+        device_name TEXT,
+        last_sync_time INTEGER NOT NULL
+      )
+    ''');
   }
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
@@ -147,6 +165,115 @@ class DatabaseHelper {
         await txn.execute('DROP TABLE patterns_old');
       });
     }
+
+    if (oldVersion < 6) {
+      // Version 6: Add sync support tables
+      // Note: We use IF NOT EXISTS in v7 to cover cases where v6 didn't create them correctly on clean install
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS authorized_devices (
+          device_id TEXT PRIMARY KEY,
+          device_name TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'trusted',
+          pair_date INTEGER NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS sync_log (
+          device_id TEXT PRIMARY KEY,
+          device_name TEXT,
+          last_sync_time INTEGER NOT NULL
+        )
+      ''');
+    }
+    
+    if (oldVersion < 7) {
+      // Version 7: Fix for missing tables on fresh install of v6
+      // Ensure the tables exist if they weren't created by v6 upgrade (e.g. fresh install case)
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS authorized_devices (
+          device_id TEXT PRIMARY KEY,
+          device_name TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'trusted',
+          pair_date INTEGER NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS sync_log (
+          device_id TEXT PRIMARY KEY,
+          device_name TEXT,
+          last_sync_time INTEGER NOT NULL
+        )
+      ''');
+    }
+  }
+
+  // Sync Log Operations
+  Future<void> updateSyncLog(String deviceId, String deviceName, int timestamp) async {
+    final db = await database;
+    await db.insert(
+      'sync_log',
+      {
+        'device_id': deviceId,
+        'device_name': deviceName,
+        'last_sync_time': timestamp,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> getLastSyncTime(String deviceId) async {
+    final db = await database;
+    final result = await db.query(
+      'sync_log',
+      columns: ['last_sync_time'],
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+    );
+    if (result.isNotEmpty) {
+      return result.first['last_sync_time'] as int;
+    }
+    return 0; // Never synced
+  }
+
+  // Authorized Device Operations
+  Future<void> authorizeDevice(String deviceId, String deviceName) async {
+    final db = await database;
+    await db.insert(
+      'authorized_devices',
+      {
+        'device_id': deviceId,
+        'device_name': deviceName,
+        'status': 'trusted',
+        'pair_date': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<bool> isDeviceAuthorized(String deviceId) async {
+    final db = await database;
+    final result = await db.query(
+      'authorized_devices',
+      where: 'device_id = ? AND status = ?',
+      whereArgs: [deviceId, 'trusted'],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<List<Map<String, dynamic>>> getAuthorizedDevices() async {
+    final db = await database;
+    return await db.query('authorized_devices', orderBy: 'pair_date DESC');
+  }
+
+  Future<void> removeAuthorizedDevice(String deviceId) async {
+    final db = await database;
+    await db.delete(
+      'authorized_devices',
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+    );
   }
 
   // Transaction operations
@@ -164,6 +291,28 @@ class DatabaseHelper {
     }
     
     await batch.commit(noResult: true);
+  }
+
+  /// Merges transactions from another device, skipping duplicates.
+  /// Returns the number of new transactions inserted.
+  Future<int> mergeTransactions(List<Transaction> transactions) async {
+    final db = await database;
+    int insertedCount = 0;
+    final batch = db.batch();
+
+    for (var txn in transactions) {
+      bool exists = await isDuplicateTransaction(txn);
+      if (!exists) {
+        batch.insert('transactions', txn.toMap());
+        insertedCount++;
+      }
+    }
+
+    if (insertedCount > 0) {
+      await batch.commit(noResult: true);
+    }
+    
+    return insertedCount;
   }
 
   Future<List<Transaction>> getAllTransactions() async {
