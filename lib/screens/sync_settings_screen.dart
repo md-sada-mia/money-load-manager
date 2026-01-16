@@ -139,7 +139,7 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
             ),
           ),
           
-          if (_syncManager.role == SyncRole.master && (_syncManager.useLan || _syncManager.useNearby))
+          if (_syncManager.role == SyncRole.master && _syncManager.isSyncing)
              Card(
                 color: Colors.green[50],
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -210,11 +210,23 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
             ),
           ),
           
-          TextButton(
-             onPressed: () {
-               _syncManager.stopSync();
-             },
-             child: const Text('Stop Sync Service', style: TextStyle(color: Colors.red)),
+          // Service Control
+          Card(
+             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+             child: SwitchListTile(
+               title: const Text('Sync Service', style: TextStyle(fontWeight: FontWeight.bold)),
+               subtitle: Text(_syncManager.isSyncing ? 'Running' : 'Stopped', style: TextStyle(color: _syncManager.isSyncing ? Colors.green : Colors.grey)),
+               value: _syncManager.isSyncing,
+               activeColor: Colors.teal,
+               onChanged: (val) async {
+                 if (val) {
+                   await _syncManager.startSync();
+                 } else {
+                   await _syncManager.stopSync();
+                 }
+                 setState(() {});
+               },
+             ),
           ),
            const SizedBox(height: 10),
         ],

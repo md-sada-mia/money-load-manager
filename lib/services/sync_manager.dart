@@ -26,6 +26,7 @@ class SyncManager {
 
   SyncRole _role = SyncRole.worker;
   bool _isSyncing = false;
+  bool get isSyncing => _isSyncing;
   String? _deviceId;
   String? _deviceName;
 
