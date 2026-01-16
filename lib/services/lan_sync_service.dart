@@ -64,6 +64,11 @@ class LanSyncService implements SyncProvider {
   String? _currentIp;
   int get servicePort => _port;
   String? get serverIp => _currentIp;
+  
+  String? _customServiceName;
+  void setup(String name) {
+    _customServiceName = name;
+  }
 
 
   @override
@@ -103,9 +108,14 @@ class LanSyncService implements SyncProvider {
       
       _statusController.add('Advertising on LAN ($ip)');
       
+
+
+  // ... (inside startAdvertising)
       // 3. Start mDNS Broadcast
+      String name = _customServiceName ?? 'MoneyLoadMaster-${const Uuid().v4().substring(0, 4)}';
+      
       BonsoirService service = BonsoirService(
-        name: 'MoneyLoadMaster-${const Uuid().v4().substring(0, 4)}',
+        name: name,
         type: _serviceType,
         port: _port,
         attributes: {
@@ -159,64 +169,25 @@ class LanSyncService implements SyncProvider {
     try {
       _discovery = BonsoirDiscovery(type: _serviceType);
       await _discovery!.initialize(); 
-      
-      _discovery!.eventStream!.listen((event) {
-        // Workaround: Use dynamic check as class names vary by version
-        final dynamicEvent = event as dynamic;
-        final String typeStr = dynamicEvent.runtimeType.toString();
-        
-        if (typeStr.contains('Found') || typeStr.contains('Resolved')) {
-          if (event.service == null) return;
-          final service = event.service!;
-          
-          // Only proceed if we have enough info (Resolved)
-          if (typeStr.contains('Resolved')) {
-              debugPrint('LAN: Found service ${service.name} at ${service.toJson()}');
-              
-              String? ip;
-              try {
-                // Priority 1: Check attributes (inserted by us)
-                if (service.attributes.containsKey('ip')) {
-                   ip = service.attributes['ip']?.toString();
-                }
-                
-                // Priority 2: Standard JSON
-                if (ip == null || ip == '0.0.0.0') {
-                   final json = service.toJson();
-                   ip = json['host'] ?? json['ip']; 
-                }
-              } catch (_) {}
-
-              final device = SyncDevice(
-                id: service.name, 
-                name: service.name,
-                ipAddress: ip,
-                servicePort: service.port,
-              );
-              _discoveredDevicesController.add(device);
-          }
-        }
-      });
-
-      await _discovery!.start();
-      _isDiscovering = true;
-      _statusController.add('Scanning LAN (Service Type: $_serviceType)...');
-      debugPrint('LAN: Initializing BonsoirDiscovery...');
-      
-      _discovery = BonsoirDiscovery(type: _serviceType);
-      await _discovery!.initialize(); 
       debugPrint('LAN: BonsoirDiscovery initialized. Starting...');
       
       _discovery!.eventStream!.listen((event) {
         final dynamicEvent = event as dynamic;
         final String typeStr = dynamicEvent.runtimeType.toString();
-        debugPrint('LAN Discovery Event: $typeStr - $event');
+        // debugPrint('LAN Discovery Event: $typeStr - $event'); // Reduce noise
         
         if (typeStr.contains('Found') || typeStr.contains('Resolved')) {
           if (event.service == null) return;
           final service = event.service!;
-          debugPrint('LAN Service Found/Resolved: ${service.name}');
           
+          if (typeStr.contains('Found')) {
+             debugPrint('LAN: Service Found: ${service.name}. Waiting for Resolution...');
+             // On some platforms/versions we might need to explicitly resolve, 
+             // but usually Bonsoir does it automatically. 
+             // If we get "Found" but not "Resolved", it means resolution failed.
+             service.resolve(_discovery!.serviceResolver);
+          }
+
           // Only proceed if we have enough info (Resolved)
           if (typeStr.contains('Resolved')) {
               _statusController.add('Resolved Service: ${service.name}');

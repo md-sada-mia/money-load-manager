@@ -64,6 +64,15 @@ class SyncManager {
       _deviceId = 'unknown_device';
       _deviceName = 'Unknown Device';
     }
+    
+    // Setup Service Name for LAN to be stable
+    if (_deviceId != null) {
+       // Sanitize ID for Bonjour/mDNS (Alphanumeric + hyphens only usually)
+       final safeId = _deviceId!.replaceAll(RegExp(r'[^a-zA-Z0-9-]'), '');
+       // Keep it short-ish
+       final shortId = safeId.length > 6 ? safeId.substring(0, 6) : safeId;
+       _lanService.setup('MoneyLoadMaster-$shortId');
+    }
 
     // specific listeners for providers
     _lanService.dataReceived.listen(_handleDataReceived);
@@ -338,6 +347,7 @@ class SyncManager {
   void _handleDiscoveredDevice(SyncDevice device, SyncProvider provider) async {
     // If multiple discovery events come in, ignore if busy
     if (_isBusySyncing) return;
+    if (!_isSyncing) return;
 
     // If we found a device via LAN, cancel the Nearby fallback
     if (provider is LanSyncService) {
@@ -394,9 +404,17 @@ class SyncManager {
       bool success = false;
       
       for (int i = 0; i < maxRetries; i++) {
+        // Check cancellation
+        if (!_isSyncing) {
+           _statusController.add('Sync cancelled.');
+           break;
+        }
+
         if (i > 0) {
            _statusController.add('Retry ${i + 1}/$maxRetries in 5s...');
-           await Future.delayed(const Duration(seconds: 5)); // Wait before retry (Fixed 5s or could be exponential)
+           // Use a cancellable delay or check after delay
+           await Future.delayed(const Duration(seconds: 5)); 
+           if (!_isSyncing) break;
         }
 
         try {
@@ -410,6 +428,9 @@ class SyncManager {
                _statusController.add('Failed to connect ($targetAddress).');
                continue; // Try next retry
             }
+
+            // Check cancellation before sending
+             if (!_isSyncing) break;
 
             // Send
             await provider.sendData(targetAddress, packet).timeout(
